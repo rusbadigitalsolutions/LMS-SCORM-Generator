@@ -1,0 +1,6 @@
+{
+  "name": "LMS SCORM Generator",
+  "description": "Generate, test, edit, and package SCORM 1.2 and 2004 interactive e-learning packages optimized for seamless LMS integration with mock telemetry and AI generation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

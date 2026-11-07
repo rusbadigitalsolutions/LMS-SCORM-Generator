@@ -1,0 +1,19 @@
+{
+  "id": "/",
+  "name": "LMS SCORM Generator",
+  "short_name": "SCORM Studio",
+  "description": "Generate, test, and package SCORM 1.2 and 2004 interactive e-learning packages for LMS.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#090d16",
+  "theme_color": "#090d16",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

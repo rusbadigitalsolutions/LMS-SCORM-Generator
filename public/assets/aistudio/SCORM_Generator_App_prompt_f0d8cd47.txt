@@ -1,0 +1,333 @@
+# Comprehensive Implementation Specification: SCORM Studio Desktop (Cross-Platform Electron App)
+
+Build a cross-platform desktop application using **Electron**, **React**, and **TypeScript** named **SCORM Studio**. The application automates the conversion of curriculum text and cloud media URLs into interactive, SCORM-compliant e-learning packages by leveraging Large Language Models (LLMs) instructed by a bundled domain skill engine.
+
+---
+
+## 1. Technical Stack & Architecture
+
+- **Runtime & Desktop Shell:** Electron (Node.js + Chromium) with secure context isolation (`contextIsolation: true`, `nodeIntegration: false`).
+- **Frontend Framework:** React 18 / 19 with TypeScript, Tailwind CSS, Lucide Icons, and Monaco Editor (for live code inspection and editing).
+- **Build System:** Vite or Electron Forge / Electron Builder.
+- **Local Packaging & File IO:** `adm-zip` (or `archiver`) for SCORM `.zip` compilation; native Node `fs/promises` and `path` for filesystem operations.
+- **IPC Architecture:** Strictly typed, secure inter-process communication bridge via `electron/preload.ts` (`window.scormStudioAPI`).
+- **AI Integrations:**
+  - Cloud Providers: OpenAI-compatible API endpoints (OpenAI, Anthropic Claude, Google Gemini API, Groq, Mistral, OpenRouter).
+  - Local AI / Self-Hosted: Ollama (`http://localhost:11434/api/generate` or `/v1/chat/completions`) and LocalAI/LM Studio.
+- **External Connectors:** Google Drive API (OAuth2 via native desktop loopback redirect `http://localhost:port` or PKCE) to inspect folders and download lesson files directly into the workspace.
+
+---
+
+## 2. Core Functional Requirements & User Stories
+
+### A. Workspace & Storage Selection
+1. The user must designate a **Project Workspace Directory** via native dialog (`dialog.showOpenDialog`) before generation.
+2. The app stores lesson source packages in isolated subdirectories:
+   ```text
+   [Workspace Directory]/
+   └── [Course_Slug]_[Lesson_Slug]/
+       ├── imsmanifest.xml
+       ├── index.html
+       ├── js/
+       │   └── scormAPI.js
+       ├── source_context.json
+       └── [Course_Slug]_[Lesson_Slug].zip
+
+The app can open an existing SCORM directory, inspect index.html, imsmanifest.xml, and js/scormAPI.js, load them into the editor, render a live sandboxed preview, and re-export the ZIP file.
+
+### B. Input Ingestion
+Lesson File Import:
+
+Local File: Drag-and-drop or file picker for Markdown (.md), Plain Text (.txt), Word (.docx), and PDF (.pdf).
+
+Google Drive Integration: Authenticate via Google OAuth2, browse Drive via file picker, and download selected docs directly into memory.
+
+Media Assets Manager:
+
+Dynamic input list where users add media URLs (Cloudinary, AWS S3, Vimeo, YouTube) or local asset paths.
+
+For each asset, the user defines:
+
+Type: Video (MP4), Infographic / Image (PNG/JPG), Audio (MP3), or External Tool / Embed.
+
+Label / Caption: (e.g., Figure 3.2: Architecture Matrix).
+
+Preferred Screen Placement: Screen 1 through Screen 6+ or Auto-Align via AI.
+
+Instruction & Architecture Settings Panel:
+
+Layout Mode: No-Scroll Paginated Deck (94vh viewport) [Default] vs. Continuous Single-Page Scrolling.
+
+Pagination Target: Set slide count (e.g., Fixed 6 Screens, Fixed 7 Screens, or Dynamic).
+
+Gamification Engine: Toggle ON/OFF; select patterns:
+
+Pillar / Triad Classifier (Pill selector with instant feedback)
+
+Scenario Triage / Decision Simulator (Metric lift counter)
+
+Matrix Builder / Perceptual Grid Tracker
+
+Lightbox Image Zoom: Toggle ON/OFF for full-screen modal image inspection with Escape handling.
+
+SCORM Target Standard: SCORM 1.2 [Default] or SCORM 2004 3rd/4th Edition.
+
+Custom Directives: Free-form prompt text area for instructor-specific constraints (e.g., "Use high-contrast borders", "Tone down corporate buzzwords", "Ensure WCAG AA contrast").
+
+### C. AI Engine & SCORM Generator Skill Embedding
+API Configuration:
+
+Dedicated Settings view supporting:
+
+Cloud API Key entry (stored securely via Electron safeStorage or encrypted local store).
+
+Model selection (e.g., gpt-4o, claude-3-5-sonnet, gemini-1.5-pro, llama3:8b).
+
+Base URL configuration (enabling Ollama / LM Studio local connections).
+
+Max Output Tokens (set high, min 8,192 tokens for complete HTML/JS/XML files).
+
+Embedded Skill Engine:
+
+The app must bundle the internal system prompt containing the SCORM Generator Skill, enforcing:
+
+Clean, modern, accessible design (dark slate palette, clear typography, responsive card containers).
+
+Pinned header (with progress bar, screen counter, module badge).
+
+Fixed viewport container without accidental page-level scrollbars.
+
+Sandboxed SCORM API wrapper (js/scormAPI.js) initializing cmi.core.lesson_status, tracking lesson_location, and committing completion.
+
+Interactive JavaScript gamification logic embedded inline within index.html.
+
+Valid imsmanifest.xml package metadata matching the title and organization.
+
+Strict Elimination of Citations and Academic Hallucinations (e.g., removing ``, bracketed footnotes, or unverified reference tags).
+
+### D. Live Preview, Code Editor, & ZIP Exporter
+Live Preview Stage:
+
+An embedded, sandboxed <webview> or <iframe> rendering the generated index.html.
+
+Built-in Mock SCORM Runtime: Inject a mock window.API / window.API_1484_11 object into the preview context so SCORM lifecycle calls (LMSInitialize, LMSSetValue, LMSCommit, LMSFinish) log to an integrated in-app "SCORM Telemetry Console".
+
+Device Viewport Switcher: Desktop (100%), Laptop (94vh / 980px), and Tablet view modes.
+
+Dual-Pane Code Editor:
+
+Integrated Monaco Editor with tabs for index.html, imsmanifest.xml, and js/scormAPI.js.
+
+Edits in the Monaco code pane instantly hot-reload the preview frame.
+
+One-Click Package Export:
+
+Save Project: Writes all three files (index.html, imsmanifest.xml, js/scormAPI.js) and a source_context.json into the chosen folder.
+
+Generate SCORM ZIP: Compiles the folder into a valid .zip ready for direct upload into Moodle, Canvas, Blackboard, TalentLMS, or SCORM Cloud.
+
+# 3. Detailed System Architecture & Project Layout
+
+scorm-studio-desktop/
+├── electron/
+│   ├── main.ts               # Main process: window management, native menus, dialogs
+│   ├── preload.ts            # Context bridge exposing secure file/system APIs
+│   ├── ipc/
+│   │   ├── aiHandler.ts      # LLM API & local Ollama stream communication
+│   │   ├── fileHandler.ts    # Native FS operations, file import, parsing (PDF/Docx)
+│   │   ├── zipHandler.ts     # Packaging directory to standard SCORM ZIP
+│   │   └── driveHandler.ts   # Google Drive OAuth2 & document retrieval
+│   └── secureStore.ts        # Credential encryption using Electron safeStorage
+├── src/
+│   ├── assets/               # App icons, static CSS, SCORM standard template files
+│   ├── components/
+│   │   ├── layout/           # Sidebar, Navbar, Status bar
+│   │   ├── setup/            # File upload, Drive picker, Media URLs, Settings
+│   │   ├── preview/          # Sandboxed SCORM preview frame & Mock LMS console
+│   │   ├── editor/           # Monaco Editor integration & file switcher
+│   │   └── common/           # Buttons, Modal, Toast notifications, Tooltips
+│   ├── context/
+│   │   ├── ProjectContext.tsx# Active lesson state, files, media, config
+│   │   └── SettingsContext.tsx# API keys, endpoint URLs, user defaults
+│   ├── skills/
+│   │   └── scormGenerator.ts # Embedded skill instructions & system prompts
+│   ├── types/
+│   │   └── electron.d.ts     # Global window.scormStudioAPI interface definitions
+│   ├── App.tsx
+│   └── main.tsx
+├── package.json
+├── tsconfig.json
+└── vite.config.ts
+
+# 4. Key Implementation Protocols & Code Snippets
+## A. Preload Interface (electron/preload.ts)
+
+import { contextBridge, ipcRenderer } from 'electron';
+
+export interface ScormStudioAPI {
+  // Directory & Workspace
+  selectWorkspaceDir: () => Promise<string | null>;
+  openScormDirectory: () => Promise<{ path: string; files: Record<string, string> } | null>;
+  saveScormProject: (projectPath: string, files: Record<string, string>) => Promise<boolean>;
+  exportScormZip: (projectPath: string, zipName: string) => Promise<string>;
+
+  // File Parsing
+  parseLocalFile: (filePath: string) => Promise<{ filename: string; content: string }>;
+
+  // Cloud Connectors
+  authenticateGoogleDrive: () => Promise<boolean>;
+  fetchDriveFiles: () => Promise<Array<{ id: mimeType: name: string string; }>>;
+  downloadDriveFile: (fileId: string) => Promise<string>;
+
+  // AI Pipeline
+  generateScormPackage: (payload: {
+    lessonContent: string;
+    mediaAssets: Array<{ url: string; type: string; caption: string; targetScreen?: number }>;
+    settings: {
+      layout: 'no-scroll' | 'scroll';
+      gamification: boolean;
+      lightbox: boolean;
+      scormVersion: '1.2' | '2004';
+      customInstructions?: string;
+    };
+  }) => Promise<{ html: string; manifest: string; scormJs: string }>;
+
+  // Secrets Management
+  saveApiKey: (provider: string, key: string) => Promise<void>;
+  getApiKey: (provider: string) => Promise<string | null>;
+}
+
+contextBridge.exposeInMainWorld('scormStudioAPI', {
+  selectWorkspaceDir: () => ipcRenderer.invoke('workspace:select-dir'),
+  openScormDirectory: () => ipcRenderer.invoke('workspace:open-dir'),
+  saveScormProject: (projectPath, files) => ipcRenderer.invoke('workspace:save-files', { projectPath, files }),
+  exportScormZip: (projectPath, zipName) => ipcRenderer.invoke('workspace:export-zip', { projectPath, zipName }),
+  parseLocalFile: (filePath) => ipcRenderer.invoke('file:parse', filePath),
+  authenticateGoogleDrive: () => ipcRenderer.invoke('drive:auth'),
+  fetchDriveFiles: () => ipcRenderer.invoke('drive:list-files'),
+  downloadDriveFile: (fileId) => ipcRenderer.invoke('drive:download', fileId),
+  generateScormPackage: (payload) => ipcRenderer.invoke('ai:generate-scorm', payload),
+  saveApiKey: (provider, key) => ipcRenderer.invoke('store:save-key', { provider, key }),
+  getApiKey: (provider) => ipcRenderer.invoke('store:get-key', provider),
+});
+
+## B. ZIP Packaging Service (electron/ipc/zipHandler.ts)
+import fs from 'fs';
+import path from 'path';
+import AdmZip from 'adm-zip';
+import { ipcMain } from 'electron';
+
+export function registerZipHandlers() {
+  ipcMain.handle('workspace:export-zip', async (_, { projectPath, zipName }) => {
+    try {
+      const zip = new AdmZip();
+      
+      const manifestPath = path.join(projectPath, 'imsmanifest.xml');
+      const htmlPath = path.join(projectPath, 'index.html');
+      const jsDir = path.join(projectPath, 'js');
+
+      if (!fs.existsSync(manifestPath) || !fs.existsSync(htmlPath)) {
+        throw new Error('Project missing core index.html or imsmanifest.xml files');
+      }
+
+      // Add files directly to root of ZIP (critical for SCORM LMS compliance)
+      zip.addLocalFile(manifestPath, '');
+      zip.addLocalFile(htmlPath, '');
+      if (fs.existsSync(jsDir)) {
+        zip.addLocalFolder(jsDir, 'js');
+      }
+
+      const outputZipPath = path.join(projectPath, zipName.endsWith('.zip') ? zipName : `${zipName}.zip`);
+      zip.writeZip(outputZipPath);
+      return outputZipPath;
+    } catch (err: any) {
+      console.error('ZIP generation failed:', err);
+      throw new Error(`Failed to generate SCORM package: ${err.message}`);
+    }
+  });
+}
+
+## C. Mock SCORM LMS Runtime for Live In-App Testing (src/components/preview/MockScormRuntime.ts)
+
+export const getMockScormRuntimeScript = () => `
+  <script>
+    (function() {
+      const logLms = (action, param, result) => {
+        window.parent.postMessage({
+          source: 'SCORM_MOCK_LMS',
+          type: 'LOG',
+          payload: { action, param, result, timestamp: new Date().toISOString() }
+        }, '*');
+      };
+
+      const cmiData = {
+        'cmi.core.lesson_status': 'not attempted',
+        'cmi.core.lesson_location': '',
+        'cmi.core.score.raw': '0',
+        'cmi.suspend_data': ''
+      };
+
+      window.API = {
+        LMSInitialize: function() { logLms('LMSInitialize', '', 'true'); return "true"; },
+        LMSFinish: function() { logLms('LMSFinish', '', 'true'); return "true"; },
+        LMSGetValue: function(element) { 
+          const val = cmiData[element] || ""; 
+          logLms('LMSGetValue', element, val); 
+          return val; 
+        },
+        LMSSetValue: function(element, value) { 
+          cmiData[element] = String(value); 
+          logLms('LMSSetValue', element + ' = ' + value, 'true'); 
+          return "true"; 
+        },
+        LMSCommit: function() { logLms('LMSCommit', '', 'true'); return "true"; },
+        LMSGetLastError: function() { return "0"; },
+        LMSGetErrorString: function() { return "No error"; },
+        LMSGetDiagnostic: function() { return "OK"; }
+      };
+    })();
+  </script>
+`;
+
+#5. UI/UX Workflow Requirements
+## Dashboard / Project Hub:
+### Display active workspace path with an option to change folders.
+### List previously generated or locally detected SCORM packages with status indicators (Uncompiled, Zipped, Passed).
+###"Create New Lesson" button and "Open Existing SCORM Folder" button.
+
+## Lesson Builder Stepper:
+
+###Step 1: Content Ingestion:
+#### Tabbed selector: Local File Upload vs Google Drive Picker vs Direct Paste.
+#### File parser automatically extracts raw lesson text into a synchronized preview pane.
+
+### Step 2: Media & Cloudinary URLs:
+####Interactive list where users enter URLs, assign descriptive badges (Video, Infographic), and target specific screen slots.
+
+### Step 3: Configuration & Custom Directives:
+####Switches for No-Scroll Deck Layout, Interactive Gamification, Lightbox Modal Zoom.
+#### Dropdown for AI provider (OpenAI, Anthropic, Gemini, Ollama Local).
+#### Text area for custom instructor instructions.
+
+### Step 4: AI Generation Engine:
+#### Progress modal showing execution states: Constructing Prompts $\rightarrow$ Contacting LLM $\rightarrow$ Synthesizing HTML5/JS $\rightarrow$ Validating Manifest Structure $\rightarrow$ Writing Files to Disk.
+
+### Step 5: 
+#### Review, Edit & Test:Left pane: Interactive Sandboxed SCORM Player with viewport toggles (Desktop/Tablet) and embedded interactive quiz/simulator components.
+#### Right pane: Tabbed Monaco Code Editor (index.html, imsmanifest.xml, js/scormAPI.js).
+#### Bottom drawer: "SCORM Telemetry Console" streaming live LMSSetValue and bookmarking calls from the running lesson.
+
+### Step 6: Export & Finalize:
+#### Buttons: Save Modifications, Open Directory in Explorer/Finder, Export SCORM ZIP Package.
+
+# 6. Execution Deliverable & Verification Plan
+
+Generate this complete Electron codebase ensuring:
+
+## Zero Hallucination / Zero Citation Rule: The embedded AI prompt explicitly instructs the LLM that lesson text must remain 100% natural and clean—completely stripping citations, bracketed source markers (``), or markdown references.
+
+## Full File Deliverables: The AI generator must always return fully realized, un-truncated code files (index.html, imsmanifest.xml, js/scormAPI.js) without placeholder comments like <!-- Insert remaining screens here -->.
+
+## Cross-Platform Compatibility: Native directory browsing and zip generation must function identically across macOS, Windows 10/11, and Linux.
+
+## Security Isolation: Cloud API keys must never be stored in plain text or exposed to the renderer process; all sensitive requests must route through Electron's main process.
