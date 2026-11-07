@@ -137,7 +137,7 @@ export function generateManifestXml(courseTitle: string, lessonTitle: string, ve
 }
 
 function escapeXml(unsafe: string): string {
-  return unsafe.replace(/[<>&'"]/g, (c) => {
+  return String(unsafe || '').replace(/[<>&'"]/g, (c) => {
     switch (c) {
       case '<': return '&lt;';
       case '>': return '&gt;';
@@ -162,27 +162,50 @@ export function buildScormPrompt(payload: {
 }): { systemInstruction: string; userPrompt: string } {
   const { courseTitle, moduleBadge, lessonTitle, lessonContent, mediaAssets, settings } = payload;
 
-  const systemInstruction = `You are the SCORM Studio AI Engine, an expert e-learning software architect.
-You build production-grade, standalone, self-contained SCORM 1.2 and SCORM 2004 interactive course packages (.zip contents) based on provided curriculum lesson text and media assets.
+  const systemInstruction = `You are the SCORM Studio AI Engine, an elite e-learning software architect and instructional designer.
+You transform raw curriculum text and media assets into production-grade, standalone SCORM 1.2 and SCORM 2004 interactive course packages (.zip contents) designed for modern LMS platforms (Canvas, Moodle, Blackboard, TalentLMS, SCORM Cloud).
 
-CRITICAL ARCHITECTURAL CONSTRAINTS:
-1. ZERO HALLUCINATION / ZERO CITATION RULE:
-   The lesson text must be 100% natural, polished, and instructional.
-   NEVER include bracketed citations like [1], [2], footnote numbers, Wikipedia references, academic paper citations, or url markdown tags in the lesson presentation.
-2. FULL UN-TRUNCATED CODE ONLY:
-   You MUST return 100% complete, fully implemented index.html code.
-   NEVER emit placeholders, TODOs, or comments like "<!-- Insert remaining screens here -->" or "<!-- Screen 3 to 6 ... -->". Every single screen must have complete HTML, copy, and layout.
-3. NO-SCROLL PAGINATED DECK PATTERN:
-   The entire lesson deck MUST fit inside a fixed-viewport container (94vh, max 840px, max-width 980px).
-   html, body { height: 100%; margin: 0; padding: 0; background: #090d16; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; justify-content: center; align-items: center; overflow: hidden; }
-   The deck container has:
-   - Pinned Header: with Module Badge ("${moduleBadge || 'Module 1'}"), Lesson Title ("${lessonTitle}"), and Screen Counter ("Screen 1 of N").
-   - Progress Bar: with animated width percentage fill.
-   - Viewport Area: .viewport { flex: 1; padding: 1.5rem 2rem; overflow-y: auto; position: relative; }
-   - Individual Screens: .screen { display: none; } .screen.active { display: block; animation: fadeIn 0.25s ease-in-out; }
-   - Pinned Bottom Navigation: #btn-prev (disabled on screen 1), #status-hint, #btn-next (turns into "Finish Lesson ✓" on final screen, calls ScormAdapter.saveProgress("lesson_completed", 100, true)).
-   - Keyboard arrows listener: ArrowRight -> next, ArrowLeft -> prev, Escape -> close lightbox.
-4. RESPONSIVE IMAGE ENLARGEMENT (LIGHTBOX MODAL):
+CRITICAL INSTRUCTIONAL DESIGN & ARCHITECTURAL RULES:
+1. CURRICULUM SYNTHESIS RULE (NEVER DUMP RAW TEXT):
+   - The provided lesson text is RAW SOURCE MATERIAL ONLY. 
+   - NEVER copy-paste the text verbatim as a massive wall of text or long introduction on Screen 1 or any screen!
+   - You must synthesize and distill the core knowledge into short, punchy explanations (max 2 concise paragraphs or structured bullet cards per screen).
+   - Screen 1 MUST be an executive briefing only:
+     * A compelling 2-sentence hook explaining why this topic matters.
+     * An objective callout box listing 2-3 concrete competencies the learner will gain.
+     * A 3-column card grid summarizing the core module pillars.
+     * TOTAL words on Screen 1 must be under 120 words.
+2. STRICT NO-SCROLL VIEWPORT DISCIPLINE:
+   - The course container has a fixed viewport (94vh, max 840px height, max-width 980px).
+   - EVERY screen MUST fit cleanly inside this viewport without requiring vertical scrolling!
+   - html, body { height: 100%; margin: 0; padding: 0; background: #090d16; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; justify-content: center; align-items: center; overflow: hidden; }
+   - .viewport { flex: 1; padding: 1.5rem 2rem; overflow-y: auto; position: relative; }
+   - .screen { display: none; } .screen.active { display: block; animation: fadeIn 0.22s ease-in-out; }
+3. BLOCK-LEVEL LISTS ONLY (NO INLINE LISTS):
+   - Every bulleted or numbered list MUST be formatted as proper block-level elements:
+     ul, ol { display: block !important; margin: 0.75rem 0 1rem 1.25rem !important; padding-left: 1rem !important; list-style-type: disc !important; }
+     li { display: list-item !important; margin-bottom: 0.5rem !important; line-height: 1.5 !important; color: #334155 !important; }
+   - Or format lists as stylish individual cards (.info-card, .list-card).
+   - NEVER concatenate list items into inline sentences or comma-separated paragraphs!
+4. 100% MANDATORY MEDIA INCLUSION RULE:
+   - You MUST embed EVERY SINGLE media asset provided in the MEDIA ASSETS list!
+   - If the user provided 3 media assets (e.g. 2 videos and 1 infographic), each of the 3 media assets MUST be embedded onto its own dedicated screen!
+   - Never omit, drop, or ignore any video or image.
+   - For Videos:
+     <div class="media-card">
+       <video controls preload="metadata" playsinline>
+         <source src="URL" type="video/mp4">
+         Your browser does not support HTML5 video.
+       </video>
+       <p class="media-caption">📹 Caption</p>
+     </div>
+   - For Images/Diagrams:
+     <div class="media-card">
+       <div class="zoom-hint" onclick="openLightbox('URL')">🔍 Click to Enlarge Diagram</div>
+       <img src="URL" alt="Caption" onclick="openLightbox(this.src)">
+       <p class="media-caption">📊 Caption (Click to expand high-res)</p>
+     </div>
+5. RESPONSIVE IMAGE LIGHTBOX MODAL:
    Always include a global lightbox modal container right before </body>:
    <div class="lightbox-modal" id="lightbox-modal" onclick="closeLightbox(event)">
      <div class="lightbox-content">
@@ -190,62 +213,148 @@ CRITICAL ARCHITECTURAL CONSTRAINTS:
        <img id="lightbox-img" src="" alt="Enlarged Diagram Preview">
      </div>
    </div>
-   And openLightbox(src), closeLightbox(e), closeLightboxDirect() JavaScript functions.
-5. INTERACTIVE GAMIFICATION:
-   You MUST embed at least one rich gamified interactive component within the lesson (e.g. on Screen 3, 4, or 5).
-   - Pattern A: Multi-Category Pill Classifier (test knowledge with instant visual green/red feedback and score addition).
-   - Pattern B: Strategic Scenario Simulator (high-stakes decision dilemma with dynamic live metric gauge/equity meter that adjusts on choice).
-   - Pattern C: Perceptual Radar / Quadrant Matrix.
-   Gamification must call window.ScormAdapter.saveProgress(location, currentScore, isCompleted) when learners interact.
-6. SCORM API INTEGRATION:
+   And openLightbox(src), closeLightbox(e), closeLightboxDirect() JavaScript functions with Escape key handling.
+6. ZERO CITATION RULE:
+   Never include bracketed citations like [1], [2], footnote numbers, Wikipedia references, academic paper citations, or url markdown tags.
+7. ACTIVE GAMIFIED TELEMETRY:
+   Embed at least one rich interactive scenario or classifier (e.g. Multi-Category Pill Classifier, Strategic Scenario Simulator with live organizational health gauge).
+   Gamification must invoke:
+   window.ScormAdapter.saveProgress(location, currentScore, isCompleted);
+8. SCORM API INTEGRATION:
    Link <script src="js/scormAPI.js"></script> in <head>.
-   The JavaScript must initialize on load and save location + score on screen change:
-   if (window.ScormAdapter) { window.ScormAdapter.saveProgress('screen_' + currentScreen, Math.round(pct), false); }
-   On completion, calls window.ScormAdapter.saveProgress('lesson_completed', 100, true);
-7. OUTPUT FORMAT:
-   Return valid JSON containing two keys: "indexHtml" (string) and "manifestXml" (string).`;
+   Save location on screen changes: ScormAdapter.saveProgress('screen_' + currentScreen, pct, false);
+   On final screen "Finish Lesson ✓" click: ScormAdapter.saveProgress('lesson_completed', 100, true);
+9. OUTPUT FORMAT:
+   Return valid JSON containing two keys: "indexHtml" (string) and "manifestXml" (string). No markdown backticks.`;
 
   const mediaListFormatted = mediaAssets.map((m, idx) => {
-    return `- Asset #${idx + 1}: Type: ${m.type.toUpperCase()}, Caption: "${m.caption}", URL: "${m.url}", Target Screen: ${m.targetScreen === 0 ? 'Auto-Align' : 'Screen ' + m.targetScreen}`;
+    return `- Media Item #${idx + 1}: [TYPE: ${m.type.toUpperCase()}] Caption: "${m.caption}" | URL: "${m.url}" | Placement: ${m.targetScreen === 0 ? 'Auto-Distribute to Screen ' + (idx + 2) : 'Screen ' + m.targetScreen}`;
   }).join('\n');
 
-  const userPrompt = `Generate a complete, production-ready SCORM package for the following course:
+  const userPrompt = `Generate a complete, production-grade SCORM package for the following course:
 
 COURSE TITLE: ${courseTitle}
 MODULE: ${moduleBadge}
 LESSON TITLE: ${lessonTitle}
 SCORM STANDARD: SCORM ${settings.scormVersion}
 SCREEN COUNT TARGET: ${settings.targetScreens} Screens
-LAYOUT: ${settings.layout === 'no-scroll' ? 'No-Scroll Paginated Deck (94vh fixed viewport)' : 'Single Page Continuous Scroll'}
+LAYOUT: No-Scroll Paginated Deck (94vh fixed viewport)
 GAMIFICATION: ${settings.gamification ? 'ENABLED (' + settings.selectedPatterns.join(', ') + ')' : 'DISABLED'}
 LIGHTBOX MODAL: ${settings.lightbox ? 'ENABLED' : 'DISABLED'}
 CUSTOM INSTRUCTOR DIRECTIVES:
 ${settings.customInstructions || 'Ensure clean typography, dark slate executive styling, high contrast, WCAG AA compliance, and engaging micro-learning layout.'}
 
-MEDIA ASSETS:
+MEDIA ASSETS TO EMBED (CRITICAL: ALL ${mediaAssets.length} ASSETS MUST BE EMBEDDED):
 ${mediaAssets.length > 0 ? mediaListFormatted : 'No remote media assets provided. Generate modern SVG diagrams and visual cards.'}
 
-SOURCE CURRICULUM TEXT:
+SOURCE CURRICULUM TEXT (SYNTHESIZE, DO NOT COPY AS A WALL OF TEXT):
 """
 ${lessonContent}
 """
 
-Please synthesize this into exactly ${settings.targetScreens} complete screens.
-Screen 1: Introduction, Objectives, Executive Hook, Module Context.
-Screen 2: Core Fundamentals, Key Principles, Visual Concept Card/Diagram.
-Screen 3: Applied Architecture, Deep Dive, Case Study or Framework Diagram (with Lightbox zoom).
-${settings.targetScreens >= 5 ? 'Screen 4: Interactive Gamification Activity (' + (settings.selectedPatterns[0] || 'Strategic Scenario Simulator') + ') with dynamic scoring and immediate feedback.' : ''}
-${settings.targetScreens >= 6 ? 'Screen 5: Advanced Tactical Nuances, Common Pitfalls, or Industry Benchmarks.' : ''}
-Screen ${settings.targetScreens}: Key Takeaways, Action Checklist, and "Finish Lesson" completion trigger.
+DISTRIBUTION OF SCREENS:
+- Screen 1: Executive Briefing & Orientation (Concise hook, 2-3 objective cards, max 120 words).
+${mediaAssets.map((m, i) => `- Screen ${i + 2}: Dedicate to Media Item #${i + 1} (${m.type.toUpperCase()} - "${m.caption}") paired with synthesized instructional principles and block-level list takeaways.`).join('\n')}
+${settings.targetScreens > mediaAssets.length + 2 ? `- Screen ${Math.min(settings.targetScreens - 1, mediaAssets.length + 2)}: Interactive Gamification Activity (${settings.selectedPatterns[0] || 'Decision Simulator'}) with instant feedback.` : ''}
+- Screen ${settings.targetScreens}: Summary, Action Checklist, and "Finish Lesson ✓" completion trigger.
 
-Remember: Output valid JSON with keys "indexHtml" and "manifestXml". No markdown wrap around the JSON.`;
+Remember:
+1. Every list item MUST have display: list-item and proper margin, never inline.
+2. Every media asset (${mediaAssets.length} total) MUST appear in the final package.
+3. Every screen must fit within 94vh without scrolling.
+4. Output valid JSON with keys "indexHtml" and "manifestXml".`;
 
   return { systemInstruction, userPrompt };
 }
 
 /**
+ * Intelligent curriculum synthesizer for the deterministic engine.
+ */
+function extractCurriculumPillars(rawText: string, lessonTitle: string) {
+  const lines = rawText.split('\n').map(l => l.trim()).filter(Boolean);
+  
+  // Extract bullet points
+  const bulletItems = lines
+    .filter(l => /^[-*•]|\d+\.\s/.test(l))
+    .map(l => l.replace(/^[-*•]\s*|\d+\.\s*/, '').trim());
+
+  // Extract paragraphs (excluding headings and bullets)
+  const paragraphs = rawText
+    .split(/\n\s*\n/)
+    .map(p => p.trim())
+    .filter(p => p.length > 0 && !p.startsWith('#') && !/^[-*•]/.test(p));
+
+  // Synthesize concise lead summary (max 2 clean sentences, under 180 chars)
+  let lead = paragraphs[0] || `Master the operational principles, core frameworks, and decision protocols of ${lessonTitle}.`;
+  if (lead.length > 200) {
+    const sentences = lead.split(/(?<=[.?!])\s+/);
+    lead = sentences.slice(0, 2).join(' ');
+    if (lead.length > 220) {
+      lead = lead.slice(0, 217) + '...';
+    }
+  }
+
+  // Curate bullet items
+  const cleanBullets = bulletItems.length >= 3 ? bulletItems.slice(0, 6) : [
+    'Analyze core requirements and establish verified baseline metrics',
+    'Deploy standard operating protocols to mitigate systemic vulnerability',
+    'Enforce continuous feedback and automated LMS telemetry synchronization'
+  ];
+
+  return {
+    leadSummary: lead,
+    bullets: cleanBullets,
+    concepts: paragraphs.slice(1, 6).map(p => {
+      if (p.length > 220) {
+        return p.split(/(?<=[.?!])\s+/).slice(0, 2).join(' ');
+      }
+      return p;
+    }),
+  };
+}
+
+/**
+ * Renders HTML for any given MediaAsset (Video, Image, Audio)
+ */
+function renderMediaHtml(asset: MediaAsset): string {
+  if (asset.type === 'video') {
+    return `
+      <div class="media-card">
+        <video controls preload="metadata" playsinline>
+          <source src="${escapeXml(asset.url)}" type="video/mp4">
+          Your browser does not support HTML5 video.
+        </video>
+        <p class="media-caption">📹 ${escapeXml(asset.caption || 'Video Walkthrough')}</p>
+      </div>`;
+  }
+
+  if (asset.type === 'audio') {
+    return `
+      <div class="media-card" style="padding: 1.25rem; background: #0f172a;">
+        <audio controls style="width: 100%;">
+          <source src="${escapeXml(asset.url)}" type="audio/mpeg">
+          Your browser does not support HTML5 audio.
+        </audio>
+        <p class="media-caption">🎧 ${escapeXml(asset.caption || 'Audio Briefing')}</p>
+      </div>`;
+  }
+
+  // Default Image / Infographic with Lightbox
+  return `
+    <div class="media-card">
+      <div class="zoom-hint" onclick="openLightbox('${escapeXml(asset.url)}')">
+        🔍 Click to Enlarge Diagram
+      </div>
+      <img src="${escapeXml(asset.url)}" 
+           alt="${escapeXml(asset.caption || 'Infographic Diagram')}"
+           onclick="openLightbox(this.src)">
+      <p class="media-caption">📊 ${escapeXml(asset.caption || 'Figure Diagram')} (Click to expand high-res)</p>
+    </div>`;
+}
+
+/**
  * High-fidelity deterministic generator when offline or fallback is needed.
- * Generates 100% valid, beautiful, complete SCORM packages matching the exact skill specifications.
+ * Incorporates 100% of attached media assets, strict No-Scroll layout, and block-level list formatting.
  */
 export function generateFallbackPackage(payload: {
   courseTitle: string;
@@ -256,24 +365,37 @@ export function generateFallbackPackage(payload: {
   settings: GeneratorSettings;
 }): ScormPackageFiles {
   const { courseTitle, moduleBadge, lessonTitle, lessonContent, mediaAssets, settings } = payload;
-  const numScreens = Math.max(4, Math.min(8, settings.targetScreens || 6));
+  
+  // Calculate total screens needed: ensure enough screens to feature EVERY media asset + intro + game + summary
+  const minRequiredScreens = Math.max(4, mediaAssets.length + 3);
+  const numScreens = Math.max(minRequiredScreens, Math.min(8, settings.targetScreens || 6));
   const manifestXml = generateManifestXml(courseTitle, lessonTitle, settings.scormVersion);
 
-  // Parse paragraphs from lessonContent for dynamic injection
-  const paragraphs = lessonContent
-    .split(/\n\s*\n/)
-    .map(p => p.trim())
-    .filter(p => p.length > 0 && !p.startsWith('#'));
+  const { leadSummary, bullets, concepts } = extractCurriculumPillars(lessonContent, lessonTitle);
 
-  const leadSummary = paragraphs[0] || `Master the essential competencies and strategic frameworks of ${lessonTitle}.`;
-  const p1 = paragraphs[1] || `Understanding the foundational mechanics provides immediate operational leverage in real-world scenarios.`;
-  const p2 = paragraphs[2] || `Strategic practitioners evaluate constraints, optimize telemetry, and implement defensible protocols.`;
-  const p3 = paragraphs[3] || `Consistent execution requires continuous feedback, automated verification, and scenario-based decision making.`;
-  const p4 = paragraphs[4] || `By aligning operational protocols with standard best practices, organizations safeguard long-term compliance.`;
+  // Map every media asset to a screen index (1-based, starting at screen 2)
+  const mediaByScreen: Record<number, MediaAsset[]> = {};
+  mediaAssets.forEach((asset, idx) => {
+    let screenNum = asset.targetScreen;
+    if (screenNum <= 1 || screenNum >= numScreens) {
+      // Auto-distribute evenly across middle screens
+      screenNum = Math.min(numScreens - 1, idx + 2);
+    }
+    if (!mediaByScreen[screenNum]) {
+      mediaByScreen[screenNum] = [];
+    }
+    mediaByScreen[screenNum].push(asset);
+  });
 
-  // Media helpers
-  const primaryVideo = mediaAssets.find(m => m.type === 'video');
-  const primaryImage = mediaAssets.find(m => m.type === 'image');
+  // Ensure any media assets that weren't assigned get allocated
+  mediaAssets.forEach((asset, idx) => {
+    const isPlaced = Object.values(mediaByScreen).some(arr => arr.includes(asset));
+    if (!isPlaced) {
+      const fallbackScreen = Math.min(numScreens - 1, idx + 2);
+      if (!mediaByScreen[fallbackScreen]) mediaByScreen[fallbackScreen] = [];
+      mediaByScreen[fallbackScreen].push(asset);
+    }
+  });
 
   const indexHtml = `<!DOCTYPE html>
 <html lang="en">
@@ -312,13 +434,14 @@ export function generateFallbackPackage(payload: {
     header {
       background: #0f172a;
       color: #f8fafc;
-      padding: 1rem 1.75rem;
+      padding: 0.9rem 1.75rem;
       display: flex;
       justify-content: space-between;
       align-items: center;
       border-bottom: 1px solid #1e293b;
+      flex-shrink: 0;
     }
-    .header-left { display: flex; flex-direction: column; gap: 0.25rem; }
+    .header-left { display: flex; flex-direction: column; gap: 0.2rem; }
     .badge {
       font-size: 0.72rem;
       text-transform: uppercase;
@@ -331,7 +454,7 @@ export function generateFallbackPackage(payload: {
       display: inline-block;
       width: fit-content;
     }
-    .module-title { font-size: 1.15rem; font-weight: 700; color: #ffffff; }
+    .module-title { font-size: 1.12rem; font-weight: 700; color: #ffffff; }
     .screen-counter {
       font-size: 0.82rem;
       font-weight: 600;
@@ -340,11 +463,11 @@ export function generateFallbackPackage(payload: {
       padding: 0.35rem 0.75rem;
       border-radius: 8px;
     }
-    .progress-bar-container { width: 100%; height: 4px; background: #e2e8f0; }
+    .progress-bar-container { width: 100%; height: 4px; background: #e2e8f0; flex-shrink: 0; }
     .progress-fill { height: 100%; width: 16.6%; background: #2563eb; transition: width 0.3s ease; }
     .viewport {
       flex: 1;
-      padding: 1.75rem 2.25rem;
+      padding: 1.5rem 2.25rem;
       overflow-y: auto;
       position: relative;
       background: #f8fafc;
@@ -355,45 +478,65 @@ export function generateFallbackPackage(payload: {
       from { opacity: 0; transform: translateY(6px); }
       to { opacity: 1; transform: translateY(0); }
     }
-    h2 { margin-top: 0; color: #0f172a; font-size: 1.6rem; font-weight: 800; letter-spacing: -0.02em; }
-    h3 { color: #1e293b; font-size: 1.15rem; margin-top: 1.25rem; margin-bottom: 0.5rem; }
-    p { color: #334155; line-height: 1.65; font-size: 0.98rem; margin: 0 0 1rem; }
-    .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; margin: 1.25rem 0; }
+    h2 { margin-top: 0; color: #0f172a; font-size: 1.45rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 0.6rem; }
+    h3 { color: #1e293b; font-size: 1.05rem; margin-top: 1rem; margin-bottom: 0.4rem; font-weight: 700; }
+    p { color: #334155; line-height: 1.6; font-size: 0.94rem; margin: 0 0 0.85rem; }
+    
+    /* Strict Block-level list styling */
+    ul, ol {
+      display: block !important;
+      margin: 0.75rem 0 1rem 1.25rem !important;
+      padding-left: 1rem !important;
+      list-style-type: disc !important;
+    }
+    ol { list-style-type: decimal !important; }
+    li {
+      display: list-item !important;
+      margin-bottom: 0.5rem !important;
+      line-height: 1.55 !important;
+      color: #334155 !important;
+      font-size: 0.92rem;
+    }
+
+    .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 0.85rem; margin: 1rem 0; }
     .info-card {
       background: #ffffff;
       border: 1px solid #e2e8f0;
       border-radius: 10px;
-      padding: 1.25rem;
+      padding: 1rem 1.15rem;
       box-shadow: 0 2px 6px rgba(0,0,0,0.03);
     }
-    .info-card strong { color: #1e293b; display: block; margin-bottom: 0.4rem; font-size: 1.02rem; }
+    .info-card strong { color: #0f172a; display: block; margin-bottom: 0.3rem; font-size: 0.96rem; }
+    .info-card p { margin: 0; font-size: 0.86rem; color: #475569; line-height: 1.5; }
+    
     .callout {
       background: #eff6ff;
       border-left: 4px solid #3b82f6;
-      padding: 1rem 1.25rem;
+      padding: 0.85rem 1.15rem;
       border-radius: 0 8px 8px 0;
-      margin: 1.25rem 0;
+      margin: 0.9rem 0;
     }
-    .callout p { margin: 0; color: #1e40af; font-weight: 500; font-size: 0.95rem; }
+    .callout p { margin: 0; color: #1e40af; font-weight: 500; font-size: 0.92rem; }
+
     /* Media & Lightbox */
     .media-card {
       position: relative;
       background: #0f172a;
       border-radius: 10px;
       overflow: hidden;
-      margin: 1.25rem 0;
+      margin: 1rem 0;
       border: 1px solid #334155;
     }
-    .media-card img, .media-card video { width: 100%; max-height: 280px; object-fit: cover; display: block; }
+    .media-card img, .media-card video { width: 100%; max-height: 250px; object-fit: contain; display: block; background: #020617; }
     .zoom-hint {
       position: absolute;
-      top: 12px;
-      right: 12px;
+      top: 10px;
+      right: 10px;
       background: rgba(15, 23, 42, 0.85);
       color: #ffffff;
-      font-size: 0.75rem;
+      font-size: 0.72rem;
       font-weight: 700;
-      padding: 0.35rem 0.65rem;
+      padding: 0.3rem 0.6rem;
       border-radius: 6px;
       cursor: pointer;
       display: flex;
@@ -401,50 +544,53 @@ export function generateFallbackPackage(payload: {
       gap: 0.35rem;
       backdrop-filter: blur(6px);
       transition: background 0.15s;
+      z-index: 2;
     }
     .zoom-hint:hover { background: #2563eb; }
     .media-caption {
-      padding: 0.6rem 1rem;
-      font-size: 0.82rem;
+      padding: 0.5rem 0.9rem;
+      font-size: 0.8rem;
       color: #94a3b8;
       background: #0f172a;
       margin: 0;
       border-top: 1px solid #1e293b;
+      font-weight: 500;
     }
+
     /* Gamification Components */
     .game-zone {
       background: #ffffff;
       border: 1px solid #cbd5e1;
       border-radius: 12px;
-      padding: 1.5rem;
-      margin: 1.25rem 0;
+      padding: 1.25rem;
+      margin: 1rem 0;
       box-shadow: 0 4px 14px rgba(0,0,0,0.05);
     }
-    .game-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+    .game-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.85rem; }
     .game-score-badge {
       background: #10b981;
       color: #ffffff;
       font-weight: 700;
-      font-size: 0.85rem;
-      padding: 0.35rem 0.75rem;
+      font-size: 0.82rem;
+      padding: 0.3rem 0.7rem;
       border-radius: 20px;
     }
     .game-item {
       background: #f1f5f9;
       border-radius: 8px;
-      padding: 1rem;
+      padding: 0.9rem;
       margin-bottom: 0.75rem;
       display: flex;
       flex-direction: column;
-      gap: 0.6rem;
+      gap: 0.5rem;
     }
     .game-btn-group { display: flex; gap: 0.5rem; flex-wrap: wrap; }
     .btn-pill {
       background: #ffffff;
       border: 1px solid #cbd5e1;
       color: #1e293b;
-      padding: 0.45rem 1rem;
-      font-size: 0.85rem;
+      padding: 0.4rem 0.9rem;
+      font-size: 0.82rem;
       font-weight: 600;
       border-radius: 9999px;
       cursor: pointer;
@@ -453,26 +599,27 @@ export function generateFallbackPackage(payload: {
     .btn-pill:hover { background: #e2e8f0; border-color: #94a3b8; }
     .btn-pill.correct { background: #16a34a !important; color: #ffffff !important; border-color: #16a34a !important; }
     .btn-pill.wrong { background: #dc2626 !important; color: #ffffff !important; border-color: #dc2626 !important; }
-    /* Simulator Gauge */
-    .sim-meter-bar { height: 10px; background: #e2e8f0; border-radius: 6px; overflow: hidden; margin: 0.75rem 0 1.25rem; }
-    .sim-meter-fill { height: 100%; width: 70%; background: #3b82f6; transition: width 0.4s ease, background 0.4s ease; }
+    .sim-meter-bar { height: 9px; background: #e2e8f0; border-radius: 6px; overflow: hidden; margin: 0.6rem 0 1rem; }
+    .sim-meter-fill { height: 100%; width: 75%; background: #3b82f6; transition: width 0.4s ease, background 0.4s ease; }
+
     /* Pinned Footer */
     footer {
       background: #ffffff;
-      padding: 1rem 1.75rem;
+      padding: 0.9rem 1.75rem;
       display: flex;
       justify-content: space-between;
       align-items: center;
       border-top: 1px solid #e2e8f0;
+      flex-shrink: 0;
     }
     .btn-nav {
       background: #0f172a;
       color: #ffffff;
       border: none;
-      padding: 0.65rem 1.4rem;
+      padding: 0.6rem 1.3rem;
       border-radius: 8px;
       font-weight: 600;
-      font-size: 0.92rem;
+      font-size: 0.88rem;
       cursor: pointer;
       display: flex;
       align-items: center;
@@ -483,7 +630,8 @@ export function generateFallbackPackage(payload: {
     .btn-nav:disabled { opacity: 0.4; cursor: not-allowed; }
     .btn-next { background: #2563eb; }
     .btn-next:hover:not(:disabled) { background: #1d4ed8; }
-    .status-hint { font-size: 0.82rem; color: #64748b; font-weight: 500; }
+    .status-hint { font-size: 0.8rem; color: #64748b; font-weight: 500; }
+
     /* Lightbox Modal */
     .lightbox-modal {
       display: none;
@@ -513,10 +661,10 @@ export function generateFallbackPackage(payload: {
       background: #ef4444;
       color: #fff;
       border: 2px solid #ffffff;
-      width: 34px;
-      height: 34px;
+      width: 32px;
+      height: 32px;
       border-radius: 50%;
-      font-size: 1.1rem;
+      font-size: 1rem;
       font-weight: 800;
       display: flex;
       justify-content: center;
@@ -529,12 +677,12 @@ export function generateFallbackPackage(payload: {
       background: #dcfce7;
       border: 2px solid #22c55e;
       color: #15803d;
-      padding: 1.5rem;
+      padding: 1.25rem;
       border-radius: 10px;
       text-align: center;
-      margin: 1.5rem 0;
+      margin: 1.25rem 0;
     }
-    .completion-banner h3 { color: #166534; margin: 0 0 0.5rem; }
+    .completion-banner h3 { color: #166534; margin: 0 0 0.4rem; }
   </style>
 </head>
 <body>
@@ -552,171 +700,140 @@ export function generateFallbackPackage(payload: {
     </div>
 
     <div class="viewport" id="viewport">
-      <!-- Screen 1: Overview & Orientation -->
+      <!-- Screen 1: Executive Briefing & Orientation (Strictly under 120 words, zero scrolling) -->
       <section class="screen active" data-screen="1">
-        <h2>${escapeXml(lessonTitle)}</h2>
+        <h2>${escapeXml(lessonTitle)}: Executive Briefing</h2>
+        
         <div class="callout">
-          <p>🎯 <strong>Objective:</strong> Master executive principles, navigate critical operational workflows, and execute with verified telemetry.</p>
+          <p>🎯 <strong>Learning Objectives:</strong> Master strategic workflows, execute tactical decisions, and verify competencies through live telemetry.</p>
         </div>
+
         <p>${escapeXml(leadSummary)}</p>
         
         <div class="card-grid">
           <div class="info-card">
-            <strong>1. Foundational Doctrine</strong>
-            <p style="font-size:0.88rem; margin:0;">Core operational primitives and strategic guardrails designed to minimize systemic risk.</p>
+            <strong>1. Foundational Core</strong>
+            <p>Master the architectural principles and operational guardrails required for execution.</p>
           </div>
           <div class="info-card">
-            <strong>2. Applied Decision Matrix</strong>
-            <p style="font-size:0.88rem; margin:0;">Real-time prioritization techniques balancing risk exposure against velocity.</p>
+            <strong>2. Visual & Media Walkthroughs</strong>
+            <p>Inspect multi-angle video briefings, diagrams, and responsive technical infographics.</p>
           </div>
           <div class="info-card">
-            <strong>3. Verified LMS Telemetry</strong>
-            <p style="font-size:0.88rem; margin:0;">Continuous progression tracking through SCORM API compliance protocols.</p>
+            <strong>3. Interactive Telemetry</strong>
+            <p>Apply competencies through decision simulators and sync completion with the LMS.</p>
           </div>
         </div>
 
-        <p style="font-size:0.88rem; color:#64748b; margin-top:1.5rem;">Use the <strong>Next</strong> button or your keyboard right-arrow (&rarr;) to advance through each screen.</p>
+        <p style="font-size:0.84rem; color:#64748b; margin-top:1.25rem;">
+          Press <strong>Next &#8594;</strong> or use your keyboard right-arrow to begin Screen 2.
+        </p>
       </section>
 
-      <!-- Screen 2: Deep Dive & Fundamentals -->
-      <section class="screen" data-screen="2">
-        <h2>Core Fundamentals & Governance</h2>
-        <p>${escapeXml(p1)}</p>
+      <!-- Middle Screens: Guaranteed placement of all media assets + concepts -->
+      ${Array.from({ length: numScreens - 2 }, (_, idx) => {
+        const screenIndex = idx + 2;
+        const screenMedia = mediaByScreen[screenIndex] || [];
+        const conceptText = concepts[idx] || `Consistent application of these frameworks eliminates ambiguity and delivers verifiable results across enterprise environments.`;
         
-        ${primaryVideo ? `
-        <div class="media-card">
-          <video controls preload="metadata" playsinline>
-            <source src="${primaryVideo.url}" type="video/mp4">
-            Your browser does not support HTML5 video.
-          </video>
-          <p class="media-caption">📹 ${escapeXml(primaryVideo.caption || 'Operational Briefing Video')}</p>
-        </div>
-        ` : `
-        <div class="callout" style="background:#f8fafc; border-left: 4px solid #0f172a;">
-          <p style="color:#0f172a;">💡 <strong>Key Tenet:</strong> Decouple emotional reaction from protocol execution. Standard operating procedures safeguard quality when stress levels peak.</p>
-        </div>
-        `}
+        // If this is the designated gamification screen (usually second-to-last screen)
+        const isGameScreen = (screenIndex === numScreens - 1 && settings.gamification);
 
-        <p>${escapeXml(p2)}</p>
-      </section>
+        if (isGameScreen) {
+          return `
+          <!-- Screen ${screenIndex}: Interactive Gamification & Decision Simulator -->
+          <section class="screen" data-screen="${screenIndex}">
+            <h2>Interactive Checkpoint: Strategic Decision Simulator</h2>
+            <p>Analyze the operational dilemma below. Your decision directly modulates organizational health and transmits your score to the LMS.</p>
 
-      <!-- Screen 3: Architecture Framework & Visual Inspection -->
-      <section class="screen" data-screen="3">
-        <h2>Architecture & Decision Framework</h2>
-        <p>${escapeXml(p3)}</p>
+            <div class="game-zone">
+              <div class="game-header">
+                <div>
+                  <span style="font-weight:700; color:#0f172a; font-size:1rem;">Organizational Health Gauge</span>
+                  <div style="font-size:0.8rem; color:#64748b;">LMS passing threshold: 70%</div>
+                </div>
+                <div class="game-score-badge" id="meter-score-badge">Health: 75%</div>
+              </div>
 
-        <div class="media-card">
-          <div class="zoom-hint" onclick="openLightbox('${primaryImage ? primaryImage.url : 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1200&q=80'}')">
-            🔍 Click to Enlarge Diagram
-          </div>
-          <img src="${primaryImage ? primaryImage.url : 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?auto=format&fit=crop&w=1200&q=80'}" 
-               alt="Framework Architecture Matrix"
-               onclick="openLightbox(this.src)">
-          <p class="media-caption">Figure 3.1: ${escapeXml(primaryImage ? primaryImage.caption : 'Standard Operating Continuum and Telemetry Architecture')} (Click to expand high-res)</p>
-        </div>
+              <div class="sim-meter-bar">
+                <div class="sim-meter-fill" id="sim-meter-fill" style="width: 75%;"></div>
+              </div>
 
-        <p>${escapeXml(p4)}</p>
-      </section>
+              <div class="game-item" id="sim-scenario-box">
+                <strong style="color:#0f172a; font-size:0.94rem;">Operational Dilemma: Critical Protocol Bypass Detected</strong>
+                <p style="margin:0; font-size:0.88rem; color:#475569;">
+                  An unverified shortcut was discovered during execution. Halting for remediation delays delivery by 2 hours, but proceeding without audit risks systemic failure.
+                </p>
+                <div class="game-btn-group" id="decision-buttons" style="margin-top:0.4rem;">
+                  <button class="btn-pill" onclick="handleDecision(this, 25, '✅ Pass: Remediating preserves systemic integrity (+25% Health).', true)">
+                    Halt & Remediate (Prioritize Integrity)
+                  </button>
+                  <button class="btn-pill" onclick="handleDecision(this, -35, '❌ Fail: Bypassing creates critical unmitigated risk (-35% Health).', false)">
+                    Deploy Immediately (Prioritize Velocity)
+                  </button>
+                </div>
+                <div id="decision-feedback" style="display:none; font-size:0.85rem; font-weight:600; padding:0.5rem 0.75rem; border-radius:6px; margin-top:0.4rem;"></div>
+              </div>
 
-      <!-- Screen 4: Gamified Cognitive Interaction -->
-      <section class="screen" data-screen="4">
-        <h2>Executive Challenge: Decision Simulator</h2>
-        <p>Analyze the operational scenario below. Your choice affects both the tactical outcome and organizational equity score transmitted to the LMS.</p>
-
-        <div class="game-zone">
-          <div class="game-header">
-            <div>
-              <span style="font-weight:700; color:#0f172a; font-size:1.05rem;">Organizational Health Meter</span>
-              <div style="font-size:0.82rem; color:#64748b;">Threshold required for passing: 70%</div>
-            </div>
-            <div class="game-score-badge" id="meter-score-badge">Health: 75%</div>
-          </div>
-
-          <div class="sim-meter-bar">
-            <div class="sim-meter-fill" id="sim-meter-fill" style="width: 75%;"></div>
-          </div>
-
-          <div class="game-item" id="sim-scenario-box">
-            <strong style="color:#0f172a; font-size:0.96rem;">Dilemma: Critical Telemetry Discrepancy Detected</strong>
-            <p style="margin:0; font-size:0.9rem; color:#475569;">
-              During a routine sprint audit, an unverified configuration bypass is discovered. Fixing it now introduces a 2-hour deployment delay, but ignoring it creates an audit liability.
-            </p>
-            <div class="game-btn-group" id="decision-buttons" style="margin-top:0.5rem;">
-              <button class="btn-pill" onclick="handleDecision(this, 25, 'Pass: Immediate remediation preserves compliance and systemic resilience (+25% Health).', true)">
-                ✅ Halt & Remediate (Prioritize Integrity)
-              </button>
-              <button class="btn-pill" onclick="handleDecision(this, -35, 'Fail: Bypassing protocols creates unmitigated audit risk (-35% Health).', false)">
-                ❌ Ship Anyway (Prioritize Speed)
-              </button>
-            </div>
-            <div id="decision-feedback" style="display:none; font-size:0.88rem; font-weight:600; padding:0.6rem 0.8rem; border-radius:6px; margin-top:0.4rem;"></div>
-          </div>
-
-          <!-- Multi-Pill Classifier Challenge -->
-          <div style="margin-top: 1.25rem;">
-            <strong style="color:#0f172a; font-size:0.95rem; display:block; margin-bottom:0.5rem;">Concept Classification: Categorize this operational rule:</strong>
-            <div class="game-item">
-              <span style="font-size:0.92rem; font-weight:500;">"All telemetry logs must be sealed and cryptographically signed before transmission":</span>
-              <div class="game-btn-group">
-                <button class="btn-pill" onclick="checkClassification(this, false)">Operational Guideline</button>
-                <button class="btn-pill" onclick="checkClassification(this, true)">Mandatory Policy</button>
-                <button class="btn-pill" onclick="checkClassification(this, false)">Optional Recommendation</button>
+              <!-- Pill Classifier -->
+              <div style="margin-top: 1rem;">
+                <strong style="color:#0f172a; font-size:0.92rem; display:block; margin-bottom:0.4rem;">Knowledge Check: Categorize this requirement:</strong>
+                <div class="game-item">
+                  <span style="font-size:0.88rem; font-weight:500;">"Audit logs must be cryptographically timestamped and committed on completion":</span>
+                  <div class="game-btn-group">
+                    <button class="btn-pill" onclick="checkClassification(this, false)">Optional Recommendation</button>
+                    <button class="btn-pill" onclick="checkClassification(this, true)">Mandatory Policy</button>
+                    <button class="btn-pill" onclick="checkClassification(this, false)">Informational Only</button>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-      </section>
+          </section>`;
+        }
 
-      <!-- Screen 5: Pitfalls & Best Practices (if numScreens >= 6) -->
-      ${numScreens >= 6 ? `
-      <section class="screen" data-screen="5">
-        <h2>Common Anti-Patterns & Risk Mitigations</h2>
-        <p>High-performing teams avoid common traps by enforcing standardized checklists before committing changes:</p>
-        
-        <div class="card-grid">
-          <div class="info-card" style="border-left:4px solid #ef4444;">
-            <strong style="color:#dc2626;">Anti-Pattern: Siloed Telemetry</strong>
-            <p style="font-size:0.88rem; margin:0;">Failing to synchronize lesson progress with the SCORM Data Model leads to lost learner progress and inaccurate LMS reporting.</p>
-          </div>
-          <div class="info-card" style="border-left:4px solid #f59e0b;">
-            <strong style="color:#d97706;">Anti-Pattern: Citation Clutter</strong>
-            <p style="font-size:0.88rem; margin:0;">Overloading instructional content with academic brackets distracts from core experiential comprehension.</p>
-          </div>
-          <div class="info-card" style="border-left:4px solid #10b981;">
-            <strong style="color:#059669;">Best Practice: Active Gamification</strong>
-            <p style="font-size:0.88rem; margin:0;">Incorporate immediate formative checks to reinforce retention without interrupting flow.</p>
-          </div>
-        </div>
-      </section>
-      ` : ''}
+        // Standard instructional & media screen
+        return `
+        <!-- Screen ${screenIndex}: Tactical Module Screen -->
+        <section class="screen" data-screen="${screenIndex}">
+          <h2>${escapeXml(screenMedia.length > 0 ? screenMedia[0].caption : `Module Deep Dive: Core Protocols (Part ${idx + 1})`)}</h2>
+          <p>${escapeXml(conceptText)}</p>
+
+          ${screenMedia.map(m => renderMediaHtml(m)).join('\n')}
+
+          <h3>Key Takeaways & Execution Rules</h3>
+          <ul>
+            ${bullets.slice(idx * 2, (idx * 2) + 2).map(b => `<li>${escapeXml(b)}</li>`).join('\n')}
+          </ul>
+        </section>`;
+      }).join('\n')}
 
       <!-- Screen N: Completion & LMS Commit -->
       <section class="screen" data-screen="${numScreens}">
-        <h2>Lesson Summary & Certification</h2>
-        <p>Congratulations! You have successfully reviewed all foundational doctrines, analyzed architecture frameworks, and completed the operational simulator challenge.</p>
+        <h2>Lesson Complete: Verification & Gradebook Commit</h2>
+        <p>You have successfully completed all instruction screens, examined the media assets, and verified your competencies through the interactive checkpoint.</p>
 
         <div class="card-grid">
           <div class="info-card">
-            <strong>✅ Doctrine Verified</strong>
-            <p style="font-size:0.86rem; margin:0;">Mastered core fundamentals and risk boundaries.</p>
+            <strong>✅ Competencies Verified</strong>
+            <p>Core operational rules and tactical frameworks reviewed.</p>
           </div>
           <div class="info-card">
-            <strong>✅ Telemetry Recorded</strong>
-            <p style="font-size:0.86rem; margin:0;">Session location and score queued for LMS commit.</p>
+            <strong>✅ All Media Reviewed</strong>
+            <p>All video briefings and architecture diagrams inspected.</p>
           </div>
           <div class="info-card">
-            <strong>✅ SCORM Compliant</strong>
-            <p style="font-size:0.86rem; margin:0;">Ready for official gradebook synchronization.</p>
+            <strong>✅ Telemetry Ready</strong>
+            <p>Score and completion status ready for LMS gradebook commit.</p>
           </div>
         </div>
 
         <div class="completion-banner" id="completion-banner">
-          <h3>🎉 Lesson Complete!</h3>
-          <p style="margin:0;">Your completion status (passed) and final score have been committed to the Learning Management System.</p>
+          <h3>🎉 Progress Recorded with LMS!</h3>
+          <p style="margin:0;">Status: <strong>passed</strong> &bull; Score committed to Learning Management System.</p>
         </div>
 
-        <div class="callout" style="background:#f1f5f9; border-left:4px solid #2563eb;">
-          <p style="color:#1e293b; margin:0;">Click the green <strong>Finish Lesson ✓</strong> button below to permanently transmit your score to the LMS.</p>
+        <div class="callout" style="background:#f1f5f9; border-left:4px solid #16a34a; margin-top:1.25rem;">
+          <p style="color:#1e293b; margin:0;">Click the green <strong>Finish Lesson ✓</strong> button below to permanently transmit your final score to the LMS gradebook.</p>
         </div>
       </section>
     </div>
@@ -883,12 +1000,14 @@ export function generateFallbackPackage(payload: {
       lessonTitle,
       settings,
       mediaCount: mediaAssets.length,
+      embeddedMediaList: mediaAssets.map(m => ({ caption: m.caption, type: m.type, url: m.url })),
       generatedAt: new Date().toISOString(),
       standardsCompliance: {
         scormVersion: settings.scormVersion,
         noScrollDeck: true,
         lightboxZoom: settings.lightbox,
         gamifiedTelemetry: settings.gamification,
+        allMediaEmbedded: true,
       }
     }, null, 2)
   };

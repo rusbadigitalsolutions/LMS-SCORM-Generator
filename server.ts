@@ -284,6 +284,16 @@ app.post('/api/generate-scorm', async (req, res) => {
           html = html.replace('</head>', '<script src="js/scormAPI.js"></script>\n</head>');
         }
 
+        // Guarantee block-level list styling so lists are never inline
+        const listStyleEnforcement = `<style>
+          ul, ol { display: block !important; margin: 0.75rem 0 1rem 1.25rem !important; padding-left: 1.25rem !important; list-style-type: disc !important; }
+          ol { list-style-type: decimal !important; }
+          li { display: list-item !important; margin-bottom: 0.5rem !important; line-height: 1.55 !important; color: #334155 !important; }
+        </style>`;
+        if (!html.includes('display: list-item')) {
+          html = html.replace('</head>', `${listStyleEnforcement}\n</head>`);
+        }
+
         return res.json({
           source: 'gemini-3.8-flash',
           files: {
