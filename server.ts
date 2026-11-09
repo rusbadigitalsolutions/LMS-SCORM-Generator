@@ -8,7 +8,9 @@ import { buildScormPrompt, generateFallbackPackage, generateManifestXml, UNIVERS
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+// AI Studio dev environment requires port 3000. In production builds, use process.env.PORT.
+const isProduction = process.env.NODE_ENV === 'production';
+const PORT = isProduction && process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 app.use(express.json({ limit: '25mb' }));
 

@@ -162,76 +162,61 @@ export function buildScormPrompt(payload: {
 }): { systemInstruction: string; userPrompt: string } {
   const { courseTitle, moduleBadge, lessonTitle, lessonContent, mediaAssets, settings } = payload;
 
-  const systemInstruction = `You are the SCORM Studio AI Engine, an elite e-learning software architect and instructional designer.
-You transform raw curriculum text and media assets into production-grade, standalone SCORM 1.2 and SCORM 2004 interactive course packages (.zip contents) designed for modern LMS platforms (Canvas, Moodle, Blackboard, TalentLMS, SCORM Cloud).
+  const systemInstruction = `You are the SCORM Studio AI Engine, an elite e-learning curriculum architect and instructional designer.
+You transform raw source text into an intuitive, enlightened, interactive micro-learning journey packaged as a standalone SCORM 1.2 or SCORM 2004 web app.
 
-CRITICAL INSTRUCTIONAL DESIGN & ARCHITECTURAL RULES:
-1. CURRICULUM SYNTHESIS RULE (NEVER DUMP RAW TEXT):
-   - The provided lesson text is RAW SOURCE MATERIAL ONLY. 
-   - NEVER copy-paste the text verbatim as a massive wall of text or long introduction on Screen 1 or any screen!
-   - You must synthesize and distill the core knowledge into short, punchy explanations (max 2 concise paragraphs or structured bullet cards per screen).
-   - Screen 1 MUST be an executive briefing only:
-     * A compelling 2-sentence hook explaining why this topic matters.
-     * An objective callout box listing 2-3 concrete competencies the learner will gain.
-     * A 3-column card grid summarizing the core module pillars.
-     * TOTAL words on Screen 1 must be under 120 words.
-2. STRICT NO-SCROLL VIEWPORT DISCIPLINE:
-   - The course container has a fixed viewport (94vh, max 840px height, max-width 980px).
-   - EVERY screen MUST fit cleanly inside this viewport without requiring vertical scrolling!
-   - html, body { height: 100%; margin: 0; padding: 0; background: #090d16; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; justify-content: center; align-items: center; overflow: hidden; }
-   - .viewport { flex: 1; padding: 1.5rem 2rem; overflow-y: auto; position: relative; }
-   - .screen { display: none; } .screen.active { display: block; animation: fadeIn 0.22s ease-in-out; }
-3. BLOCK-LEVEL LISTS ONLY (NO INLINE LISTS):
-   - Every bulleted or numbered list MUST be formatted as proper block-level elements:
+CRITICAL PEDAGOGICAL & ARCHITECTURAL DIRECTIVES:
+1. CURRICULUM DECOMPOSITION (NEVER COPY-PASTE A WALL OF TEXT):
+   - The provided lesson text is raw background curriculum ONLY.
+   - You must NOT dump raw paragraphs or multiple pages of text onto any screen.
+   - Screen 1 MUST be titled: "Introduction: ${lessonTitle}" (or Executive Orientation).
+     * It MUST contain a concise 2-sentence hook synthesizing the introduction of the lesson.
+     * A learning outcomes callout box stating 2-3 concrete competencies the learner will gain.
+     * A 3-pillar roadmap grid previewing the upcoming topics.
+     * TOTAL word count on Screen 1 must be under 120 words to strictly honor the No-Scroll viewport constraint.
+2. SCREEN TITLES MUST BE INSTRUCTIONAL TOPICS (NEVER MEDIA CAPTIONS):
+   - Every middle screen must have a clear, instructional topic title (h2) representing the core concept (e.g. "Core Operational Dilemma", "Strategic Governance Framework", "Applied Execution Protocols").
+   - NEVER name a screen after a media caption or filename (e.g. NEVER make an h2 "Figure 1" or "Video 1")!
+   - Media assets are supporting illustrative exhibits. Place them inside:
+     <div class="media-card">...</div> with a figure caption below (e.g. "<p class='media-caption'>Exhibit 2.1: Operational Flowchart</p>").
+3. BLOCK-LEVEL LISTS & INTUITIVE CHUNKING:
+   - All bullet points and numbered lists MUST be formatted with proper block styling:
      ul, ol { display: block !important; margin: 0.75rem 0 1rem 1.25rem !important; padding-left: 1rem !important; list-style-type: disc !important; }
-     li { display: list-item !important; margin-bottom: 0.5rem !important; line-height: 1.5 !important; color: #334155 !important; }
-   - Or format lists as stylish individual cards (.info-card, .list-card).
-   - NEVER concatenate list items into inline sentences or comma-separated paragraphs!
-4. 100% MANDATORY MEDIA INCLUSION RULE:
-   - You MUST embed EVERY SINGLE media asset provided in the MEDIA ASSETS list!
-   - If the user provided 3 media assets (e.g. 2 videos and 1 infographic), each of the 3 media assets MUST be embedded onto its own dedicated screen!
-   - Never omit, drop, or ignore any video or image.
+     li { display: list-item !important; margin-bottom: 0.5rem !important; line-height: 1.55 !important; color: #334155 !important; }
+   - Never output lists as inline or comma-separated text.
+4. 100% MANDATORY MEDIA INCLUSION:
+   - Every single media asset in the MEDIA ASSETS list (${mediaAssets.length} total) MUST be embedded into the course deck on its appropriate screen.
    - For Videos:
      <div class="media-card">
        <video controls preload="metadata" playsinline>
          <source src="URL" type="video/mp4">
          Your browser does not support HTML5 video.
        </video>
-       <p class="media-caption">📹 Caption</p>
+       <p class="media-caption">📹 Exhibit: [Caption]</p>
      </div>
    - For Images/Diagrams:
      <div class="media-card">
        <div class="zoom-hint" onclick="openLightbox('URL')">🔍 Click to Enlarge Diagram</div>
-       <img src="URL" alt="Caption" onclick="openLightbox(this.src)">
-       <p class="media-caption">📊 Caption (Click to expand high-res)</p>
+       <img src="URL" alt="[Caption]" onclick="openLightbox(this.src)">
+       <p class="media-caption">📊 Exhibit: [Caption] (Click to expand high-res)</p>
      </div>
-5. RESPONSIVE IMAGE LIGHTBOX MODAL:
-   Always include a global lightbox modal container right before </body>:
-   <div class="lightbox-modal" id="lightbox-modal" onclick="closeLightbox(event)">
-     <div class="lightbox-content">
-       <div class="lightbox-close" onclick="closeLightboxDirect()">✕</div>
-       <img id="lightbox-img" src="" alt="Enlarged Diagram Preview">
-     </div>
-   </div>
-   And openLightbox(src), closeLightbox(e), closeLightboxDirect() JavaScript functions with Escape key handling.
-6. ZERO CITATION RULE:
-   Never include bracketed citations like [1], [2], footnote numbers, Wikipedia references, academic paper citations, or url markdown tags.
-7. ACTIVE GAMIFIED TELEMETRY:
-   Embed at least one rich interactive scenario or classifier (e.g. Multi-Category Pill Classifier, Strategic Scenario Simulator with live organizational health gauge).
-   Gamification must invoke:
-   window.ScormAdapter.saveProgress(location, currentScore, isCompleted);
-8. SCORM API INTEGRATION:
-   Link <script src="js/scormAPI.js"></script> in <head>.
-   Save location on screen changes: ScormAdapter.saveProgress('screen_' + currentScreen, pct, false);
-   On final screen "Finish Lesson ✓" click: ScormAdapter.saveProgress('lesson_completed', 100, true);
-9. OUTPUT FORMAT:
-   Return valid JSON containing two keys: "indexHtml" (string) and "manifestXml" (string). No markdown backticks.`;
+5. STRICT NO-SCROLL VIEWPORT CONSTRAINT:
+   - Fixed height container: 94vh (max 840px, max-width 980px).
+   - Content on each screen MUST fit without requiring the user to scroll vertically.
+6. INTERACTIVE GAMIFICATION & TELEMETRY:
+   - Include an interactive Decision Simulator (Scenario Dilemma with dynamic Organizational Health Meter) or Multi-Category Pill Classifier.
+   - Fire window.ScormAdapter.saveProgress(location, currentScore, isCompleted) on learner interactions.
+7. SCORM API LINKAGE:
+   - Link <script src="js/scormAPI.js"></script> in <head>.
+   - Commit completion on the final screen button "Finish Lesson ✓".
+8. OUTPUT FORMAT:
+   - Output valid JSON only: { "indexHtml": "...", "manifestXml": "..." }. No markdown code fence wrap around the JSON.`;
 
   const mediaListFormatted = mediaAssets.map((m, idx) => {
-    return `- Media Item #${idx + 1}: [TYPE: ${m.type.toUpperCase()}] Caption: "${m.caption}" | URL: "${m.url}" | Placement: ${m.targetScreen === 0 ? 'Auto-Distribute to Screen ' + (idx + 2) : 'Screen ' + m.targetScreen}`;
+    return `- Media Item #${idx + 1}: [TYPE: ${m.type.toUpperCase()}] Caption: "${m.caption}" | URL: "${m.url}" | Recommended Placement: ${m.targetScreen === 0 ? 'Screen ' + (idx + 2) : 'Screen ' + m.targetScreen}`;
   }).join('\n');
 
-  const userPrompt = `Generate a complete, production-grade SCORM package for the following course:
+  const userPrompt = `Deconstruct and synthesize the following source curriculum into an enlightening, interactive SCORM course:
 
 COURSE TITLE: ${courseTitle}
 MODULE: ${moduleBadge}
@@ -242,81 +227,270 @@ LAYOUT: No-Scroll Paginated Deck (94vh fixed viewport)
 GAMIFICATION: ${settings.gamification ? 'ENABLED (' + settings.selectedPatterns.join(', ') + ')' : 'DISABLED'}
 LIGHTBOX MODAL: ${settings.lightbox ? 'ENABLED' : 'DISABLED'}
 CUSTOM INSTRUCTOR DIRECTIVES:
-${settings.customInstructions || 'Ensure clean typography, dark slate executive styling, high contrast, WCAG AA compliance, and engaging micro-learning layout.'}
+${settings.customInstructions || 'Deliver clear pedagogical flow, executive micro-learning, zero academic citations, and high-contrast accessibility.'}
 
-MEDIA ASSETS TO EMBED (CRITICAL: ALL ${mediaAssets.length} ASSETS MUST BE EMBEDDED):
+MEDIA ASSETS TO EMBED (ALL ${mediaAssets.length} MUST BE EMBEDDED):
 ${mediaAssets.length > 0 ? mediaListFormatted : 'No remote media assets provided. Generate modern SVG diagrams and visual cards.'}
 
-SOURCE CURRICULUM TEXT (SYNTHESIZE, DO NOT COPY AS A WALL OF TEXT):
+SOURCE CURRICULUM TEXT:
 """
 ${lessonContent}
 """
 
-DISTRIBUTION OF SCREENS:
-- Screen 1: Executive Briefing & Orientation (Concise hook, 2-3 objective cards, max 120 words).
-${mediaAssets.map((m, i) => `- Screen ${i + 2}: Dedicate to Media Item #${i + 1} (${m.type.toUpperCase()} - "${m.caption}") paired with synthesized instructional principles and block-level list takeaways.`).join('\n')}
-${settings.targetScreens > mediaAssets.length + 2 ? `- Screen ${Math.min(settings.targetScreens - 1, mediaAssets.length + 2)}: Interactive Gamification Activity (${settings.selectedPatterns[0] || 'Decision Simulator'}) with instant feedback.` : ''}
-- Screen ${settings.targetScreens}: Summary, Action Checklist, and "Finish Lesson ✓" completion trigger.
+PEDAGOGICAL STRUCTURE REQUIREMENTS:
+1. Screen 1: Introduction: ${lessonTitle}
+   - Clear executive hook synthesizing the introductory context from the text.
+   - Objectives callout box with 2-3 bulleted competencies.
+   - 3-card roadmap previewing upcoming core topics. Max 120 words total.
+2. Screens 2 to ${settings.targetScreens - 1}:
+   - Give each screen an instructional concept title (e.g., "Core Principles", "Strategic Framework", "Operational Playbook").
+   - Pair concise explanations with supporting media exhibits and block-level key takeaway bullets.
+   - Embed an interactive Decision Simulator or Knowledge Check on Screen ${Math.max(3, settings.targetScreens - 1)}.
+3. Screen ${settings.targetScreens}: Certification & Action Plan
+   - Action checklist, key takeaway cards, and "Finish Lesson ✓" SCORM commit.
 
-Remember:
-1. Every list item MUST have display: list-item and proper margin, never inline.
-2. Every media asset (${mediaAssets.length} total) MUST appear in the final package.
-3. Every screen must fit within 94vh without scrolling.
-4. Output valid JSON with keys "indexHtml" and "manifestXml".`;
+Remember: Output valid JSON with keys "indexHtml" and "manifestXml".`;
 
   return { systemInstruction, userPrompt };
 }
 
-/**
- * Intelligent curriculum synthesizer for the deterministic engine.
- */
-function extractCurriculumPillars(rawText: string, lessonTitle: string) {
-  const lines = rawText.split('\n').map(l => l.trim()).filter(Boolean);
-  
-  // Extract bullet points
-  const bulletItems = lines
-    .filter(l => /^[-*•]|\d+\.\s/.test(l))
-    .map(l => l.replace(/^[-*•]\s*|\d+\.\s*/, '').trim());
+// -----------------------------------------------------------------------------------------
+// Structural Curriculum Decomposer & Pedagogical Engine (Deterministic Fallback)
+// -----------------------------------------------------------------------------------------
 
-  // Extract paragraphs (excluding headings and bullets)
-  const paragraphs = rawText
-    .split(/\n\s*\n/)
-    .map(p => p.trim())
-    .filter(p => p.length > 0 && !p.startsWith('#') && !/^[-*•]/.test(p));
-
-  // Synthesize concise lead summary (max 2 clean sentences, under 180 chars)
-  let lead = paragraphs[0] || `Master the operational principles, core frameworks, and decision protocols of ${lessonTitle}.`;
-  if (lead.length > 200) {
-    const sentences = lead.split(/(?<=[.?!])\s+/);
-    lead = sentences.slice(0, 2).join(' ');
-    if (lead.length > 220) {
-      lead = lead.slice(0, 217) + '...';
-    }
-  }
-
-  // Curate bullet items
-  const cleanBullets = bulletItems.length >= 3 ? bulletItems.slice(0, 6) : [
-    'Analyze core requirements and establish verified baseline metrics',
-    'Deploy standard operating protocols to mitigate systemic vulnerability',
-    'Enforce continuous feedback and automated LMS telemetry synchronization'
-  ];
-
-  return {
-    leadSummary: lead,
-    bullets: cleanBullets,
-    concepts: paragraphs.slice(1, 6).map(p => {
-      if (p.length > 220) {
-        return p.split(/(?<=[.?!])\s+/).slice(0, 2).join(' ');
-      }
-      return p;
-    }),
+interface ParsedCurriculumTopic {
+  title: string;
+  summary: string;
+  detail: string;
+  takeaways: string[];
+  interactivePrompt?: {
+    question: string;
+    options: { text: string; correct: boolean }[];
   };
 }
 
 /**
- * Renders HTML for any given MediaAsset (Video, Image, Audio)
+ * Parses raw lesson text into structured, coherent pedagogical modules.
+ * Accurately extracts real titles, prevents text dumping, and aligns media as exhibits.
  */
-function renderMediaHtml(asset: MediaAsset): string {
+function parseCurriculumStructure(rawText: string, lessonTitle: string): {
+  introHook: string;
+  objectives: string[];
+  topics: ParsedCurriculumTopic[];
+} {
+  // Strip academic citations [1], [^2], url markdown tags
+  const sanitized = (rawText || '')
+    .replace(/\[\^?\d+\]/g, '')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1')
+    .trim();
+
+  const lines = sanitized.split('\n').map(l => l.trim());
+  const paragraphs = sanitized
+    .split(/\n\s*\n/)
+    .map(p => p.trim())
+    .filter(p => p.length > 0);
+
+  // Extract explicit bullet points
+  const rawBullets = lines
+    .filter(l => /^[-*•]|\d+\.\s/.test(l))
+    .map(l => l.replace(/^[-*•]\s*|\d+\.\s*/, '').trim());
+
+  const rawLines = sanitized.split(/\r?\n/).map(l => l.trim());
+  interface RawSection {
+    heading: string;
+    paragraphs: string[];
+    bullets: string[];
+  }
+  const sections: RawSection[] = [];
+  let currentHeading = 'Introduction';
+  let currentParas: string[] = [];
+  let currentBullets: string[] = [];
+  let currentParaBuffer: string[] = [];
+
+  function flushPara() {
+    if (currentParaBuffer.length > 0) {
+      currentParas.push(currentParaBuffer.join(' '));
+      currentParaBuffer = [];
+    }
+  }
+
+  function flushSection() {
+    flushPara();
+    if (currentParas.length > 0 || currentBullets.length > 0) {
+      sections.push({
+        heading: currentHeading,
+        paragraphs: [...currentParas],
+        bullets: [...currentBullets]
+      });
+      currentParas = [];
+      currentBullets = [];
+    }
+  }
+
+  for (const line of rawLines) {
+    if (!line) {
+      flushPara();
+      continue;
+    }
+
+    if (/^[-*•]|\d+\.\s/.test(line)) {
+      flushPara();
+      currentBullets.push(line.replace(/^[-*•]\s*|\d+\.\s*/, '').trim());
+      continue;
+    }
+
+    const isMdHeading = /^#{1,4}\s+(.+)/.exec(line);
+    const isNumberedHeading = /^(?:Section|Chapter|Part|Module|\d+[\.\:])\s*(.+)/i.exec(line);
+    const isShortTitle = line.length < 55 && !line.includes('.') && (line.endsWith(':') || (/^[A-Z0-9\s—–\-]+$/.test(line) && line.length > 3));
+
+    if (isMdHeading || isNumberedHeading || isShortTitle) {
+      flushSection();
+      currentHeading = (isMdHeading ? isMdHeading[1] : (isNumberedHeading ? isNumberedHeading[1] : line)).replace(/:$/, '').trim();
+      continue;
+    }
+
+    currentParaBuffer.push(line);
+  }
+  flushSection();
+
+  // 1. Synthesize Intro Hook & Objectives from the actual curriculum
+  let introHook = '';
+  if (sections.length > 0 && sections[0].paragraphs.length > 0) {
+    introHook = sections[0].paragraphs[0];
+  } else if (rawBullets.length > 0) {
+    introHook = `Master the operational principles, core frameworks, and decision protocols of ${lessonTitle}.`;
+  } else {
+    introHook = `Master the foundational doctrines, risk parameters, and execution frameworks of ${lessonTitle}.`;
+  }
+
+  // Truncate intro hook if too long (max 2 clean sentences, under 180 chars)
+  if (introHook.length > 180) {
+    const sentences = introHook.split(/(?<=[.?!])\s+/);
+    introHook = sentences.slice(0, 2).join(' ');
+    if (introHook.length > 200) {
+      introHook = introHook.slice(0, 197) + '...';
+    }
+  }
+
+  // Synthesize 3 concrete learning objectives
+  const objectives: string[] = rawBullets.length >= 3 
+    ? rawBullets.slice(0, 3) 
+    : [
+      `Analyze core principles and evaluate risk constraints in ${lessonTitle}`,
+      `Execute standardized operational protocols with verified quality guardrails`,
+      `Apply decision frameworks to navigate complex real-world incident scenarios`
+    ];
+
+  // 2. Build Thematic Module Topics from Extracted Sections
+  // Filter out introduction section from subsequent topic cards
+  const topicSections = sections.filter((s, idx) => {
+    const isIntro = idx === 0 || s.heading.toLowerCase().includes('introduction') || s.heading.toLowerCase().includes('overview');
+    return !isIntro && (s.paragraphs.length > 0 || s.bullets.length > 0);
+  });
+  const topics: ParsedCurriculumTopic[] = [];
+
+  if (topicSections.length >= 1) {
+    topicSections.forEach((sec, idx) => {
+      const summary = sec.paragraphs[0] || `Understanding the dynamics of ${sec.heading} provides essential operational leverage.`;
+      const detail = sec.paragraphs[1] || `Consistent execution requires continuous feedback, automated verification, and scenario-based decision making.`;
+
+      topics.push({
+        title: `${idx + 1}. ${sec.heading}`,
+        summary: summary.length > 220 ? summary.split(/(?<=[.?!])\s+/).slice(0, 2).join(' ') : summary,
+        detail: detail.length > 220 ? detail.split(/(?<=[.?!])\s+/).slice(0, 2).join(' ') : detail,
+        takeaways: sec.bullets.length >= 2 ? sec.bullets.slice(0, 4) : [
+          `Prioritize baseline compliance before accelerating deployment velocity`,
+          `Enforce cryptographic telemetry validation across all operational stages`,
+          `Conduct systematic reviews to eliminate recurring anti-patterns`
+        ],
+        interactivePrompt: {
+          question: `Regarding ${sec.heading}: What is the primary operational rule?`,
+          options: [
+            { text: 'Establishing proactive governance and repeatable quality', correct: true },
+            { text: 'Maximizing delivery speed regardless of verification', correct: false },
+            { text: 'Bypassing compliance audits to avoid schedule delays', correct: false },
+          ]
+        }
+      });
+    });
+  } else {
+    // If text lacked explicit headings, generate 4 pedagogical topic modules from the content
+    const remainingParas = paragraphs.slice(1);
+    const p1 = remainingParas[0] || `Foundational mechanics provide the baseline architecture for all subsequent operational workflows.`;
+    const p2 = remainingParas[1] || `Strategic decision matrices allow teams to balance delivery pressure against structural integrity.`;
+    const p3 = remainingParas[2] || `Automated telemetry and real-time observability ensure that divergence is detected prior to deployment.`;
+    const p4 = remainingParas[3] || `Rigorous post-execution retrospectives transform isolated incidents into permanent organizational competencies.`;
+
+    topics.push({
+      title: '1. Foundational Architecture & Core Tenets',
+      summary: p1.length > 220 ? p1.split(/(?<=[.?!])\s+/).slice(0, 2).join(' ') : p1,
+      detail: `Operating without explicit architectural guardrails creates compounding technical debt and systemic fragility.`,
+      takeaways: [
+        'Define explicit boundaries and invariant operating standards',
+        'Decouple emotional reaction from protocol execution',
+        'Establish automated compliance checkpoints at critical handoffs'
+      ],
+      interactivePrompt: {
+        question: 'When establishing foundational architecture, what takes precedence?',
+        options: [
+          { text: 'Defensible baseline standards and verified telemetry', correct: true },
+          { text: 'Unverified feature velocity', correct: false },
+          { text: 'Ad-hoc manual interventions', correct: false },
+        ]
+      }
+    });
+
+    topics.push({
+      title: '2. Strategic Governance & Execution Frameworks',
+      summary: p2.length > 220 ? p2.split(/(?<=[.?!])\s+/).slice(0, 2).join(' ') : p2,
+      detail: `High-performing organizations employ standardized decision heuristics to resolve operational dilemmas in high-stakes environments.`,
+      takeaways: [
+        'Quantify trade-offs between velocity and systemic integrity',
+        'Require cryptographic sign-off before committing state changes',
+        'Maintain transparent escalation pathways for blocked protocols'
+      ],
+      interactivePrompt: {
+        question: 'How should teams resolve conflict between speed and protocol compliance?',
+        options: [
+          { text: 'Halt and remediate to preserve systemic resilience', correct: true },
+          { text: 'Deploy immediately and address audits later', correct: false },
+          { text: 'Suppress warning telemetry to meet deadlines', correct: false },
+        ]
+      }
+    });
+
+    topics.push({
+      title: '3. Technical Verification & Observability',
+      summary: p3.length > 220 ? p3.split(/(?<=[.?!])\s+/).slice(0, 2).join(' ') : p3,
+      detail: `Observability must be continuous and passive, automatically relaying milestone progress directly to the Learning Management System.`,
+      takeaways: [
+        'Stream SCORM data model mutations via standard CMI elements',
+        'Validate learner interaction times and raw score increments',
+        'Guarantee persistent commit on session unload'
+      ],
+    });
+
+    topics.push({
+      title: '4. Applied Incident Simulator & Risk Mitigation',
+      summary: p4.length > 220 ? p4.split(/(?<=[.?!])\s+/).slice(0, 2).join(' ') : p4,
+      detail: `Scenario-based learning cements mental models by exposing practitioners to consequences in safe, simulated sandbox conditions.`,
+      takeaways: [
+        'Run periodic simulation drills to stress-test team heuristics',
+        'Audit post-incident root causes with blameless accountability',
+        'Integrate lessons learned directly into automated test suites'
+      ],
+    });
+  }
+
+  return { introHook, objectives, topics };
+}
+
+/**
+ * Renders an illustrative media exhibit inside a structured lesson card
+ */
+function renderMediaExhibitHtml(asset: MediaAsset, exhibitIndex: number): string {
+  const caption = asset.caption || (asset.type === 'video' ? 'Instructional Video Briefing' : 'Architecture & Process Diagram');
+
   if (asset.type === 'video') {
     return `
       <div class="media-card">
@@ -324,7 +498,7 @@ function renderMediaHtml(asset: MediaAsset): string {
           <source src="${escapeXml(asset.url)}" type="video/mp4">
           Your browser does not support HTML5 video.
         </video>
-        <p class="media-caption">📹 ${escapeXml(asset.caption || 'Video Walkthrough')}</p>
+        <p class="media-caption">📹 Exhibit ${exhibitIndex}: ${escapeXml(caption)}</p>
       </div>`;
   }
 
@@ -335,7 +509,7 @@ function renderMediaHtml(asset: MediaAsset): string {
           <source src="${escapeXml(asset.url)}" type="audio/mpeg">
           Your browser does not support HTML5 audio.
         </audio>
-        <p class="media-caption">🎧 ${escapeXml(asset.caption || 'Audio Briefing')}</p>
+        <p class="media-caption">🎧 Exhibit ${exhibitIndex}: ${escapeXml(caption)}</p>
       </div>`;
   }
 
@@ -346,15 +520,15 @@ function renderMediaHtml(asset: MediaAsset): string {
         🔍 Click to Enlarge Diagram
       </div>
       <img src="${escapeXml(asset.url)}" 
-           alt="${escapeXml(asset.caption || 'Infographic Diagram')}"
+           alt="${escapeXml(caption)}"
            onclick="openLightbox(this.src)">
-      <p class="media-caption">📊 ${escapeXml(asset.caption || 'Figure Diagram')} (Click to expand high-res)</p>
+      <p class="media-caption">📊 Exhibit ${exhibitIndex}: ${escapeXml(caption)} <span style="color:#60a5fa;">(Click diagram to expand in full-screen)</span></p>
     </div>`;
 }
 
 /**
- * High-fidelity deterministic generator when offline or fallback is needed.
- * Incorporates 100% of attached media assets, strict No-Scroll layout, and block-level list formatting.
+ * Deterministic generation engine applying deep curriculum decomposition,
+ * strictly separating instructional section titles from media exhibits.
  */
 export function generateFallbackPackage(payload: {
   courseTitle: string;
@@ -366,20 +540,20 @@ export function generateFallbackPackage(payload: {
 }): ScormPackageFiles {
   const { courseTitle, moduleBadge, lessonTitle, lessonContent, mediaAssets, settings } = payload;
   
-  // Calculate total screens needed: ensure enough screens to feature EVERY media asset + intro + game + summary
-  const minRequiredScreens = Math.max(4, mediaAssets.length + 3);
+  // Calculate total screens needed
+  const minRequiredScreens = Math.max(5, mediaAssets.length + 3);
   const numScreens = Math.max(minRequiredScreens, Math.min(8, settings.targetScreens || 6));
   const manifestXml = generateManifestXml(courseTitle, lessonTitle, settings.scormVersion);
 
-  const { leadSummary, bullets, concepts } = extractCurriculumPillars(lessonContent, lessonTitle);
+  const { introHook, objectives, topics } = parseCurriculumStructure(lessonContent, lessonTitle);
 
-  // Map every media asset to a screen index (1-based, starting at screen 2)
+  // Map every media asset to a middle screen (Screen 2 through numScreens - 2)
   const mediaByScreen: Record<number, MediaAsset[]> = {};
   mediaAssets.forEach((asset, idx) => {
     let screenNum = asset.targetScreen;
     if (screenNum <= 1 || screenNum >= numScreens) {
       // Auto-distribute evenly across middle screens
-      screenNum = Math.min(numScreens - 1, idx + 2);
+      screenNum = Math.min(numScreens - 2, idx + 2);
     }
     if (!mediaByScreen[screenNum]) {
       mediaByScreen[screenNum] = [];
@@ -391,7 +565,7 @@ export function generateFallbackPackage(payload: {
   mediaAssets.forEach((asset, idx) => {
     const isPlaced = Object.values(mediaByScreen).some(arr => arr.includes(asset));
     if (!isPlaced) {
-      const fallbackScreen = Math.min(numScreens - 1, idx + 2);
+      const fallbackScreen = Math.min(numScreens - 2, idx + 2);
       if (!mediaByScreen[fallbackScreen]) mediaByScreen[fallbackScreen] = [];
       mediaByScreen[fallbackScreen].push(asset);
     }
@@ -465,6 +639,7 @@ export function generateFallbackPackage(payload: {
     }
     .progress-bar-container { width: 100%; height: 4px; background: #e2e8f0; flex-shrink: 0; }
     .progress-fill { height: 100%; width: 16.6%; background: #2563eb; transition: width 0.3s ease; }
+    
     .viewport {
       flex: 1;
       padding: 1.5rem 2.25rem;
@@ -478,6 +653,8 @@ export function generateFallbackPackage(payload: {
       from { opacity: 0; transform: translateY(6px); }
       to { opacity: 1; transform: translateY(0); }
     }
+    
+    /* Typography & Hierarchy */
     h2 { margin-top: 0; color: #0f172a; font-size: 1.45rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 0.6rem; }
     h3 { color: #1e293b; font-size: 1.05rem; margin-top: 1rem; margin-bottom: 0.4rem; font-weight: 700; }
     p { color: #334155; line-height: 1.6; font-size: 0.94rem; margin: 0 0 0.85rem; }
@@ -518,7 +695,7 @@ export function generateFallbackPackage(payload: {
     }
     .callout p { margin: 0; color: #1e40af; font-weight: 500; font-size: 0.92rem; }
 
-    /* Media & Lightbox */
+    /* Media Exhibits & Lightbox */
     .media-card {
       position: relative;
       background: #0f172a;
@@ -549,7 +726,7 @@ export function generateFallbackPackage(payload: {
     .zoom-hint:hover { background: #2563eb; }
     .media-caption {
       padding: 0.5rem 0.9rem;
-      font-size: 0.8rem;
+      font-size: 0.82rem;
       color: #94a3b8;
       background: #0f172a;
       margin: 0;
@@ -589,8 +766,8 @@ export function generateFallbackPackage(payload: {
       background: #ffffff;
       border: 1px solid #cbd5e1;
       color: #1e293b;
-      padding: 0.4rem 0.9rem;
-      font-size: 0.82rem;
+      padding: 0.45rem 1rem;
+      font-size: 0.85rem;
       font-weight: 600;
       border-radius: 9999px;
       cursor: pointer;
@@ -601,6 +778,19 @@ export function generateFallbackPackage(payload: {
     .btn-pill.wrong { background: #dc2626 !important; color: #ffffff !important; border-color: #dc2626 !important; }
     .sim-meter-bar { height: 9px; background: #e2e8f0; border-radius: 6px; overflow: hidden; margin: 0.6rem 0 1rem; }
     .sim-meter-fill { height: 100%; width: 75%; background: #3b82f6; transition: width 0.4s ease, background 0.4s ease; }
+
+    /* Interactive Insight Expanders */
+    .insight-box {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 0.85rem 1rem;
+      margin: 0.75rem 0;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .insight-box:hover { border-color: #93c5fd; background: #eff6ff; }
+    .insight-header { display: flex; justify-content: space-between; align-items: center; font-weight: 700; color: #1e293b; font-size: 0.92rem; }
 
     /* Pinned Footer */
     footer {
@@ -689,7 +879,7 @@ export function generateFallbackPackage(payload: {
   <div class="deck-container">
     <header>
       <div class="header-left">
-        <span class="badge">${escapeXml(moduleBadge || 'Module 1')} &bull; Lesson ${escapeXml(lessonTitle)}</span>
+        <span class="badge">${escapeXml(moduleBadge || 'Module 1')} &bull; ${escapeXml(lessonTitle)}</span>
         <div class="module-title">${escapeXml(courseTitle)}</div>
       </div>
       <div class="screen-counter" id="screen-counter">Screen 1 of ${numScreens}</div>
@@ -700,57 +890,53 @@ export function generateFallbackPackage(payload: {
     </div>
 
     <div class="viewport" id="viewport">
-      <!-- Screen 1: Executive Briefing & Orientation (Strictly under 120 words, zero scrolling) -->
+      <!-- Screen 1: True Lesson Introduction & Orientation -->
       <section class="screen active" data-screen="1">
-        <h2>${escapeXml(lessonTitle)}: Executive Briefing</h2>
+        <h2>Introduction: ${escapeXml(lessonTitle)}</h2>
         
         <div class="callout">
-          <p>🎯 <strong>Learning Objectives:</strong> Master strategic workflows, execute tactical decisions, and verify competencies through live telemetry.</p>
+          <p>🎯 <strong>Learning Objectives:</strong> By completing this interactive module, you will:</p>
+          <ul style="margin: 0.5rem 0 0; padding-left: 1.25rem;">
+            ${objectives.map(obj => `<li>${escapeXml(obj)}</li>`).join('')}
+          </ul>
         </div>
 
-        <p>${escapeXml(leadSummary)}</p>
+        <p>${escapeXml(introHook)}</p>
         
+        <h3 style="margin-top: 1.2rem; font-size: 0.95rem; color: #475569; text-transform: uppercase; letter-spacing: 0.05em;">Curriculum Roadmap</h3>
         <div class="card-grid">
-          <div class="info-card">
-            <strong>1. Foundational Core</strong>
-            <p>Master the architectural principles and operational guardrails required for execution.</p>
-          </div>
-          <div class="info-card">
-            <strong>2. Visual & Media Walkthroughs</strong>
-            <p>Inspect multi-angle video briefings, diagrams, and responsive technical infographics.</p>
-          </div>
-          <div class="info-card">
-            <strong>3. Interactive Telemetry</strong>
-            <p>Apply competencies through decision simulators and sync completion with the LMS.</p>
-          </div>
+          ${topics.slice(0, 3).map((t, i) => `
+            <div class="info-card">
+              <strong>${escapeXml(t.title)}</strong>
+              <p>${escapeXml(t.summary.slice(0, 95))}...</p>
+            </div>
+          `).join('')}
         </div>
 
         <p style="font-size:0.84rem; color:#64748b; margin-top:1.25rem;">
-          Press <strong>Next &#8594;</strong> or use your keyboard right-arrow to begin Screen 2.
+          Press <strong>Next &#8594;</strong> or use your keyboard right-arrow to explore the first core concept.
         </p>
       </section>
 
-      <!-- Middle Screens: Guaranteed placement of all media assets + concepts -->
+      <!-- Middle Instructional Screens (Content-First with Embedded Exhibits) -->
       ${Array.from({ length: numScreens - 2 }, (_, idx) => {
         const screenIndex = idx + 2;
+        const topic = topics[idx % topics.length];
         const screenMedia = mediaByScreen[screenIndex] || [];
-        const conceptText = concepts[idx] || `Consistent application of these frameworks eliminates ambiguity and delivers verifiable results across enterprise environments.`;
-        
-        // If this is the designated gamification screen (usually second-to-last screen)
         const isGameScreen = (screenIndex === numScreens - 1 && settings.gamification);
 
         if (isGameScreen) {
           return `
           <!-- Screen ${screenIndex}: Interactive Gamification & Decision Simulator -->
           <section class="screen" data-screen="${screenIndex}">
-            <h2>Interactive Checkpoint: Strategic Decision Simulator</h2>
-            <p>Analyze the operational dilemma below. Your decision directly modulates organizational health and transmits your score to the LMS.</p>
+            <h2>Strategic Simulation: Incident Decision Triage</h2>
+            <p>Apply the principles learned in this lesson. Your decisions will directly modulate the organizational health gauge below and record completion telemetry to your LMS.</p>
 
             <div class="game-zone">
               <div class="game-header">
                 <div>
-                  <span style="font-weight:700; color:#0f172a; font-size:1rem;">Organizational Health Gauge</span>
-                  <div style="font-size:0.8rem; color:#64748b;">LMS passing threshold: 70%</div>
+                  <span style="font-weight:700; color:#0f172a; font-size:1rem;">Organizational Health Metric</span>
+                  <div style="font-size:0.8rem; color:#64748b;">Passing threshold: 70%</div>
                 </div>
                 <div class="game-score-badge" id="meter-score-badge">Health: 75%</div>
               </div>
@@ -762,7 +948,7 @@ export function generateFallbackPackage(payload: {
               <div class="game-item" id="sim-scenario-box">
                 <strong style="color:#0f172a; font-size:0.94rem;">Operational Dilemma: Critical Protocol Bypass Detected</strong>
                 <p style="margin:0; font-size:0.88rem; color:#475569;">
-                  An unverified shortcut was discovered during execution. Halting for remediation delays delivery by 2 hours, but proceeding without audit risks systemic failure.
+                  During sprint execution, an unverified shortcut was discovered. Halting to remediate delays delivery by 2 hours, but proceeding without audit risks systemic compromise.
                 </p>
                 <div class="game-btn-group" id="decision-buttons" style="margin-top:0.4rem;">
                   <button class="btn-pill" onclick="handleDecision(this, 25, '✅ Pass: Remediating preserves systemic integrity (+25% Health).', true)">
@@ -775,7 +961,7 @@ export function generateFallbackPackage(payload: {
                 <div id="decision-feedback" style="display:none; font-size:0.85rem; font-weight:600; padding:0.5rem 0.75rem; border-radius:6px; margin-top:0.4rem;"></div>
               </div>
 
-              <!-- Pill Classifier -->
+              <!-- Pill Classifier Knowledge Check -->
               <div style="margin-top: 1rem;">
                 <strong style="color:#0f172a; font-size:0.92rem; display:block; margin-bottom:0.4rem;">Knowledge Check: Categorize this requirement:</strong>
                 <div class="game-item">
@@ -791,39 +977,61 @@ export function generateFallbackPackage(payload: {
           </section>`;
         }
 
-        // Standard instructional & media screen
+        // Standard instructional screen: Title is the curriculum topic, media is embedded as supporting exhibit
         return `
-        <!-- Screen ${screenIndex}: Tactical Module Screen -->
+        <!-- Screen ${screenIndex}: ${escapeXml(topic.title)} -->
         <section class="screen" data-screen="${screenIndex}">
-          <h2>${escapeXml(screenMedia.length > 0 ? screenMedia[0].caption : `Module Deep Dive: Core Protocols (Part ${idx + 1})`)}</h2>
-          <p>${escapeXml(conceptText)}</p>
+          <h2>${escapeXml(topic.title)}</h2>
+          <p>${escapeXml(topic.summary)}</p>
 
-          ${screenMedia.map(m => renderMediaHtml(m)).join('\n')}
+          ${screenMedia.length > 0 ? `
+            <div style="margin: 0.85rem 0;">
+              ${screenMedia.map((m, mIdx) => renderMediaExhibitHtml(m, mIdx + 1)).join('\n')}
+            </div>
+          ` : `
+            <div class="callout" style="background:#f8fafc; border-left: 4px solid #0f172a;">
+              <p style="color:#0f172a;">💡 <strong>Strategic Tenet:</strong> Decouple emotional reaction from protocol execution. Standard operating procedures safeguard quality when stress levels peak.</p>
+            </div>
+          `}
+
+          <p>${escapeXml(topic.detail)}</p>
 
           <h3>Key Takeaways & Execution Rules</h3>
           <ul>
-            ${bullets.slice(idx * 2, (idx * 2) + 2).map(b => `<li>${escapeXml(b)}</li>`).join('\n')}
+            ${topic.takeaways.map(t => `<li>${escapeXml(t)}</li>`).join('\n')}
           </ul>
+
+          ${topic.interactivePrompt ? `
+            <div class="insight-box" onclick="this.classList.toggle('expanded')">
+              <div class="insight-header">
+                <span>🤔 Reflective Check: ${escapeXml(topic.interactivePrompt.question)}</span>
+                <span style="font-size: 0.8rem; color: #2563eb;">Show Answer ▾</span>
+              </div>
+              <p style="margin: 0.4rem 0 0; font-size: 0.86rem; color: #059669; font-weight: 600;">
+                ✓ Correct Answer: ${escapeXml(topic.interactivePrompt.options.find(o => o.correct)?.text || 'Establishing proactive governance and repeatable quality')}
+              </p>
+            </div>
+          ` : ''}
         </section>`;
       }).join('\n')}
 
       <!-- Screen N: Completion & LMS Commit -->
       <section class="screen" data-screen="${numScreens}">
         <h2>Lesson Complete: Verification & Gradebook Commit</h2>
-        <p>You have successfully completed all instruction screens, examined the media assets, and verified your competencies through the interactive checkpoint.</p>
+        <p>Congratulations! You have completed all foundational modules, examined the media exhibits, and verified your competencies through the strategic decision simulator.</p>
 
         <div class="card-grid">
           <div class="info-card">
-            <strong>✅ Competencies Verified</strong>
-            <p>Core operational rules and tactical frameworks reviewed.</p>
+            <strong>✅ Competencies Mastered</strong>
+            <p>Reviewed all core doctrines and execution frameworks.</p>
           </div>
           <div class="info-card">
-            <strong>✅ All Media Reviewed</strong>
-            <p>All video briefings and architecture diagrams inspected.</p>
+            <strong>✅ All Media Exhibits Inspected</strong>
+            <p>Video briefings and architecture diagrams verified.</p>
           </div>
           <div class="info-card">
-            <strong>✅ Telemetry Ready</strong>
-            <p>Score and completion status ready for LMS gradebook commit.</p>
+            <strong>✅ SCORM Telemetry Committed</strong>
+            <p>Passing score and completion queued for LMS sync.</p>
           </div>
         </div>
 
@@ -1008,6 +1216,7 @@ export function generateFallbackPackage(payload: {
         lightboxZoom: settings.lightbox,
         gamifiedTelemetry: settings.gamification,
         allMediaEmbedded: true,
+        contentFirstHeadings: true,
       }
     }, null, 2)
   };
