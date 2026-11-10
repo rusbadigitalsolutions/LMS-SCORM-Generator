@@ -210,34 +210,59 @@ export const CloudAccountsModal: React.FC<CloudAccountsModalProps> = ({
           {/* Tab 4: AI Model / API Keys */}
           {activeTab === 'ai' && (
             <div className="space-y-4">
-              <div className="bg-emerald-950/30 border border-emerald-800/40 rounded-xl p-4 text-xs text-emerald-200">
-                <strong>Bring-Your-Own-Key (BYOK):</strong> When packaging or deploying this desktop app, learners or instructors can plug in their own Cloud AI key (Gemini, OpenAI, Anthropic, Groq) or local Ollama server.
+              <div className="bg-gradient-to-r from-purple-950/40 via-blue-950/40 to-slate-900 border border-purple-800/40 rounded-xl p-4 text-xs text-slate-200">
+                <div className="flex items-center gap-2 font-bold text-white mb-1">
+                  <Sparkles className="w-4 h-4 text-purple-400" />
+                  <span>Bring-Your-Own-Key (BYOK) & Multi-Model Engine</span>
+                </div>
+                <p className="text-slate-300 leading-relaxed text-[11px]">
+                  Connect your choice of cloud AI provider. With <strong>OpenRouter</strong>, you can access dozens of high-performance models (including <strong>100% free models</strong> like Llama 3.3 70B and Gemini 2.0 Flash) with a single API key.
+                </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                    Provider
+                    AI Provider
                   </label>
                   <select
                     value={form.customAi.provider}
-                    onChange={(e) => setForm({
-                      ...form,
-                      customAi: { ...form.customAi, provider: e.target.value as any }
-                    })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500"
+                    onChange={(e) => {
+                      const prov = e.target.value as any;
+                      let defaultModel = form.customAi.model;
+                      if (prov === 'openrouter') defaultModel = 'meta-llama/llama-3.3-70b-instruct:free';
+                      else if (prov === 'gemini') defaultModel = 'gemini-3.8-flash';
+                      else if (prov === 'groq') defaultModel = 'llama-3.3-70b-versatile';
+                      else if (prov === 'openai') defaultModel = 'gpt-4o';
+                      else if (prov === 'anthropic') defaultModel = 'claude-3-5-sonnet-20241022';
+                      else if (prov === 'ollama') defaultModel = 'llama3';
+
+                      setForm({
+                        ...form,
+                        customAi: {
+                          ...form.customAi,
+                          provider: prov,
+                          model: defaultModel,
+                        }
+                      });
+                    }}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500 font-medium"
                   >
-                    <option value="gemini">Google Gemini (Recommended)</option>
-                    <option value="openai">OpenAI (GPT-4o)</option>
+                    <option value="openrouter">OpenRouter (100+ Models & Free Tier)</option>
+                    <option value="gemini">Google Gemini API</option>
+                    <option value="groq">Groq (Ultra-Fast Free Tier)</option>
+                    <option value="openai">OpenAI (GPT-4o / o1)</option>
                     <option value="anthropic">Anthropic (Claude 3.5 Sonnet)</option>
-                    <option value="groq">Groq (Llama 3)</option>
-                    <option value="ollama">Ollama (Local Desktop)</option>
+                    <option value="ollama">Ollama (Local Desktop Offline)</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                    Model Identifier
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center justify-between">
+                    <span>Model Identifier</span>
+                    {form.customAi.provider === 'openrouter' && (
+                      <span className="text-[10px] text-purple-400 font-bold uppercase tracking-wider">Free models available</span>
+                    )}
                   </label>
                   <input
                     type="text"
@@ -246,16 +271,85 @@ export const CloudAccountsModal: React.FC<CloudAccountsModalProps> = ({
                       ...form,
                       customAi: { ...form.customAi, model: e.target.value }
                     })}
-                    placeholder="gemini-3.8-flash"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500 font-mono"
+                    placeholder={form.customAi.provider === 'openrouter' ? 'meta-llama/llama-3.3-70b-instruct:free' : 'gemini-3.8-flash'}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500 font-mono text-[11px]"
                   />
                 </div>
               </div>
 
+              {/* Quick Model Presets for OpenRouter */}
+              {form.customAi.provider === 'openrouter' && (
+                <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2">
+                  <div className="flex items-center justify-between text-[11px] text-slate-400">
+                    <span className="font-semibold text-slate-300">Quick Model Selection:</span>
+                    <a
+                      href="https://openrouter.ai/models"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-purple-400 hover:text-purple-300 flex items-center gap-1"
+                    >
+                      Browse all 100+ models <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { label: 'Llama 3.3 70B (Free)', id: 'meta-llama/llama-3.3-70b-instruct:free', badge: 'FREE' },
+                      { label: 'Gemini 2.0 Flash (Free)', id: 'google/gemini-2.0-flash-exp:free', badge: 'FREE' },
+                      { label: 'DeepSeek R1 (Free)', id: 'deepseek/deepseek-r1:free', badge: 'FREE' },
+                      { label: 'Claude 3.5 Sonnet', id: 'anthropic/claude-3.5-sonnet', badge: 'PRO' },
+                      { label: 'GPT-4o', id: 'openai/gpt-4o', badge: 'PRO' },
+                    ].map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setForm({
+                          ...form,
+                          customAi: { ...form.customAi, model: m.id }
+                        })}
+                        className={`px-2 py-1 rounded-lg text-[11px] font-medium border flex items-center gap-1.5 transition-all ${
+                          form.customAi.model === m.id
+                            ? 'bg-purple-600/30 border-purple-500 text-white font-bold'
+                            : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
+                        }`}
+                      >
+                        <span>{m.label}</span>
+                        <span className={`text-[9px] px-1 py-0.2 rounded font-black ${
+                          m.badge === 'FREE' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-blue-500/20 text-blue-300'
+                        }`}>
+                          {m.badge}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                  API Key
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-semibold text-slate-300">
+                    {form.customAi.provider === 'openrouter' ? 'OpenRouter API Key *' : 'API Key *'}
+                  </label>
+                  {form.customAi.provider === 'openrouter' && (
+                    <a
+                      href="https://openrouter.ai/keys"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[11px] text-purple-400 hover:text-purple-300 flex items-center gap-1"
+                    >
+                      Get your key at openrouter.ai/keys <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                  {form.customAi.provider === 'groq' && (
+                    <a
+                      href="https://console.groq.com/keys"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-[11px] text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                    >
+                      Get key at console.groq.com <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                </div>
                 <input
                   type="password"
                   value={form.customAi.apiKey}
@@ -263,15 +357,21 @@ export const CloudAccountsModal: React.FC<CloudAccountsModalProps> = ({
                     ...form,
                     customAi: { ...form.customAi, apiKey: e.target.value }
                   })}
-                  placeholder="AI Studio / Cloud API Key"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 font-mono"
+                  placeholder={
+                    form.customAi.provider === 'openrouter' 
+                      ? 'sk-or-v1-...' 
+                      : form.customAi.provider === 'groq'
+                      ? 'gsk_...'
+                      : 'Enter your API key'
+                  }
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-purple-500 font-mono text-[11px]"
                 />
               </div>
 
               {form.customAi.provider === 'ollama' && (
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                    Ollama Base URL
+                    Ollama Base URL (Local Machine)
                   </label>
                   <input
                     type="text"
@@ -281,7 +381,7 @@ export const CloudAccountsModal: React.FC<CloudAccountsModalProps> = ({
                       customAi: { ...form.customAi, baseUrl: e.target.value }
                     })}
                     placeholder="http://localhost:11434"
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 font-mono"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-blue-500 font-mono text-[11px]"
                   />
                 </div>
               )}

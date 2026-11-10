@@ -230,14 +230,126 @@ app.post('/api/generate-scorm', async (req, res) => {
     },
   };
 
-  // If Gemini API is available (either environment or user-provided key), try generating through gemini-3.8-flash
-  const userApiKey = req.body.cloudAiConfig?.apiKey || process.env.GEMINI_API_KEY;
+  const { systemInstruction, userPrompt } = buildScormPrompt(payload);
+  const cloudAiConfig = req.body.cloudAiConfig;
+  const provider = cloudAiConfig?.provider || (cloudAiConfig?.apiKey?.startsWith('sk-or-') ? 'openrouter' : 'gemini');
+
+  // 1. OpenRouter, Groq, OpenAI, or Ollama Execution Path
+  if (provider === 'openrouter' || provider === 'groq' || provider === 'openai' || provider === 'ollama') {
+    const apiKey = cloudAiConfig?.apiKey || '';
+    let endpoint = 'https://openrouter.ai/api/v1/chat/completions';
+    let defaultModel = 'meta-llama/llama-3.3-70b-instruct:free';
+    const extraHeaders: Record<string, string> = {};
+
+    if (provider === 'openrouter') {
+      endpoint = 'https://openrouter.ai/api/v1/chat/completions';
+      defaultModel = 'meta-llama/llama-3.3-70b-instruct:free';
+      extraHeaders['HTTP-Referer'] = process.env.APP_URL || 'https://lms-scorm-generator.local';
+      extraHeaders['X-Title'] = 'LMS SCORM Generator';
+    } else if (provider === 'groq') {
+      endpoint = 'https://api.groq.com/openai/v1/chat/completions';
+      defaultModel = 'llama-3.3-70b-versatile';
+    } else if (provider === 'openai') {
+      endpoint = 'https://api.openai.com/v1/chat/completions';
+      defaultModel = 'gpt-4o';
+    } else if (provider === 'ollama') {
+      endpoint = `${cloudAiConfig?.baseUrl || 'http://localhost:11434'}/v1/chat/completions`;
+      defaultModel = 'llama3';
+    }
+
+    const targetModel = cloudAiConfig?.model || defaultModel;
+
+    if (apiKey || provider === 'ollama') {
+      try {
+        console.log(`Calling ${provider} API with model: ${targetModel}`);
+        const responseText = await (async () => {
+          const res = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+              ...extraHeaders,
+            },
+            body: JSON.stringify({
+              model: targetModel,
+              messages: [
+                { role: 'system', content: systemInstruction },
+                { role: 'user', content: userPrompt },
+              ],
+              response_format: { type: 'json_object' },
+              max_tokens: 8192,
+            }),
+          });
+
+          if (!res.ok) {
+            const errText = await res.text();
+            throw new Error(`${provider} returned HTTP ${res.status}: ${errText}`);
+          }
+
+          const data = await res.json();
+          return data.choices?.[0]?.message?.content || '';
+        })();
+
+        let parsed: { indexHtml?: string; manifestXml?: string } = {};
+        try {
+          parsed = JSON.parse(responseText);
+        } catch {
+          const cleaned = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
+          parsed = JSON.parse(cleaned);
+        }
+
+        if (parsed.indexHtml && parsed.indexHtml.length > 200) {
+          let manifest = parsed.manifestXml;
+          if (!manifest || manifest.length < 50) {
+            manifest = generateManifestXml(payload.courseTitle, payload.lessonTitle, payload.settings.scormVersion);
+          }
+
+          let html = parsed.indexHtml;
+          if (!html.includes('js/scormAPI.js')) {
+            html = html.replace('</head>', '<script src="js/scormAPI.js"></script>\n</head>');
+          }
+
+          const listStyleEnforcement = `<style>
+            ul, ol { display: block !important; margin: 0.75rem 0 1rem 1.25rem !important; padding-left: 1.25rem !important; list-style-type: disc !important; }
+            ol { list-style-type: decimal !important; }
+            li { display: list-item !important; margin-bottom: 0.5rem !important; line-height: 1.55 !important; color: #334155 !important; }
+          </style>`;
+          if (!html.includes('display: list-item')) {
+            html = html.replace('</head>', `${listStyleEnforcement}\n</head>`);
+          }
+
+          return res.json({
+            source: `${provider} (${targetModel})`,
+            files: {
+              'index.html': html,
+              'imsmanifest.xml': manifest,
+              'js/scormAPI.js': UNIVERSAL_SCORM_API_JS,
+              'source_context.json': JSON.stringify({
+                courseTitle: payload.courseTitle,
+                moduleBadge: payload.moduleBadge,
+                lessonTitle: payload.lessonTitle,
+                settings: payload.settings,
+                mediaAssets: payload.mediaAssets,
+                generatedWith: `${provider} (${targetModel})`,
+                generatedAt: new Date().toISOString(),
+              }, null, 2),
+            },
+          });
+        }
+      } catch (callErr: any) {
+        console.warn(`${provider} API call failed, falling back to deterministic skill generator:`, callErr?.message);
+      }
+    }
+  }
+
+  // 2. Google Gemini API Execution Path
+  const userApiKey = cloudAiConfig?.apiKey || process.env.GEMINI_API_KEY;
   let activeAi = ai;
 
-  if (req.body.cloudAiConfig?.apiKey && req.body.cloudAiConfig.apiKey !== process.env.GEMINI_API_KEY) {
+  if (cloudAiConfig?.apiKey && cloudAiConfig.apiKey !== process.env.GEMINI_API_KEY) {
     try {
       activeAi = new GoogleGenAI({
-        apiKey: req.body.cloudAiConfig.apiKey,
+        apiKey: cloudAiConfig.apiKey,
         httpOptions: {
           headers: {
             'User-Agent': 'aistudio-build',
@@ -251,9 +363,7 @@ app.post('/api/generate-scorm', async (req, res) => {
 
   if (activeAi && userApiKey) {
     try {
-      const { systemInstruction, userPrompt } = buildScormPrompt(payload);
-
-      const targetModel = req.body.cloudAiConfig?.model || 'gemini-3.8-flash';
+      const targetModel = cloudAiConfig?.model || 'gemini-3.8-flash';
       const response = await activeAi.models.generateContent({
         model: targetModel,
         contents: userPrompt,
@@ -269,7 +379,6 @@ app.post('/api/generate-scorm', async (req, res) => {
       try {
         parsed = JSON.parse(responseText);
       } catch (jsonErr) {
-        // In case the model returned wrapped text or markdown
         const cleaned = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
         parsed = JSON.parse(cleaned);
       }
@@ -280,13 +389,11 @@ app.post('/api/generate-scorm', async (req, res) => {
           manifest = generateManifestXml(payload.courseTitle, payload.lessonTitle, payload.settings.scormVersion);
         }
 
-        // Ensure js/scormAPI.js is properly linked
         let html = parsed.indexHtml;
         if (!html.includes('js/scormAPI.js')) {
           html = html.replace('</head>', '<script src="js/scormAPI.js"></script>\n</head>');
         }
 
-        // Guarantee block-level list styling so lists are never inline
         const listStyleEnforcement = `<style>
           ul, ol { display: block !important; margin: 0.75rem 0 1rem 1.25rem !important; padding-left: 1.25rem !important; list-style-type: disc !important; }
           ol { list-style-type: decimal !important; }
@@ -343,9 +450,21 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`LMS SCORM Generator running on http://0.0.0.0:${PORT}`);
   });
+
+  server.on('error', (err: any) => {
+    console.error('Express server listen error:', err);
+  });
 }
+
+process.on('uncaughtException', (err) => {
+  console.error('Process uncaughtException:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Process unhandledRejection at:', promise, 'reason:', reason);
+});
 
 startServer();

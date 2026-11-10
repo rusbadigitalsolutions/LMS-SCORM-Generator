@@ -15,7 +15,7 @@ export interface CloudAccountSettings {
     apiKey: string;
   };
   customAi: {
-    provider: 'gemini' | 'openai' | 'anthropic' | 'groq' | 'ollama';
+    provider: 'gemini' | 'openai' | 'anthropic' | 'groq' | 'ollama' | 'openrouter';
     apiKey: string;
     model: string;
     baseUrl: string;
