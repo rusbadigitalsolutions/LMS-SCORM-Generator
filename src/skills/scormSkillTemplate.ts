@@ -203,13 +203,21 @@ CRITICAL PEDAGOGICAL & ARCHITECTURAL DIRECTIVES:
 5. STRICT NO-SCROLL VIEWPORT CONSTRAINT:
    - Fixed height container: 94vh (max 840px, max-width 980px).
    - Content on each screen MUST fit without requiring the user to scroll vertically.
-6. INTERACTIVE GAMIFICATION & TELEMETRY:
-   - Include an interactive Decision Simulator (Scenario Dilemma with dynamic Organizational Health Meter) or Multi-Category Pill Classifier.
-   - Fire window.ScormAdapter.saveProgress(location, currentScore, isCompleted) on learner interactions.
-7. SCORM API LINKAGE:
+6. UNIQUE SUB-TOPICS & DIVERSE KEY TAKEAWAYS:
+   - Every single screen MUST cover a distinct, unique sub-concept from the text.
+   - NEVER repeat the same key takeaways or the same bullet points across multiple screens! Each screen must carry distinct, screen-specific takeaways.
+7. TRUE INTERACTIVE KNOWLEDGE CHECKS (NEVER PRE-REVEAL ANSWERS):
+   - Every instructional screen must include a clickable Multiple-Choice Knowledge Check.
+   - The correct answer MUST NOT be pre-selected, pre-checked, or revealed initially!
+   - Provide neutral, clickable option buttons (A, B, C). Feedback is only displayed after the learner clicks.
+   - On the second-to-last screen, include the strategic Decision Simulator with organizational health meter bar.
+8. SCORM API LINKAGE & NO-SCROLL:
    - Link <script src="js/scormAPI.js"></script> in <head>.
    - Commit completion on the final screen button "Finish Lesson ✓".
-8. OUTPUT FORMAT:
+9. COMPLETE SENTENCES ONLY (NEVER TRUNCATE WITH ELLIPSES):
+   - Never truncate sentences or words with ellipses (...) or leave sentences half-finished.
+   - Every sentence on every screen, inside callout boxes, roadmap cards, and takeaways must be grammatically complete and end with a proper terminal punctuation mark (. ! ?).
+10. OUTPUT FORMAT:
    - Output valid JSON only: { "indexHtml": "...", "manifestXml": "..." }. No markdown code fence wrap around the JSON.`;
 
   const mediaListFormatted = mediaAssets.map((m, idx) => {
@@ -263,9 +271,14 @@ interface ParsedCurriculumTopic {
   summary: string;
   detail: string;
   takeaways: string[];
-  interactivePrompt?: {
+  interactivePrompt: {
     question: string;
-    options: { text: string; correct: boolean }[];
+    explanation: string;
+    options: {
+      text: string;
+      correct: boolean;
+      feedback: string;
+    }[];
   };
 }
 
@@ -277,15 +290,114 @@ function extractCompleteSentences(text: string, maxSentences: number = 2): strin
   const trimmed = text.trim();
   const sentences = trimmed.match(/[^.!?]+(?:[.!?]+['"]?|$)/g);
   if (!sentences || sentences.length === 0) return trimmed;
-  const cleanList = sentences.map(s => s.trim()).filter(Boolean);
+  const cleanList = sentences
+    .map(s => s.trim())
+    .filter(Boolean)
+    .map(s => {
+      let clean = s.replace(/[\.\s\-\–]+$/, '').trim();
+      return clean ? clean + '.' : '';
+    })
+    .filter(Boolean);
   return cleanList.slice(0, maxSentences).join(' ');
 }
 
 /**
- * Parses raw lesson text into structured, coherent pedagogical modules.
- * Accurately extracts real titles, prevents text dumping, and aligns media as exhibits.
+ * Generates an interactive, topic-relevant knowledge check for a specific screen.
+ * The answer is NEVER revealed until clicked, options are rotated, and distractors are domain-specific.
  */
-function parseCurriculumStructure(rawText: string, lessonTitle: string): {
+function generateTopicKnowledgeCheck(
+  topicTitle: string,
+  summary: string,
+  detail: string,
+  takeaways: string[],
+  topicIndex: number
+): {
+  question: string;
+  explanation: string;
+  options: { text: string; correct: boolean; feedback: string }[];
+} {
+  const cleanTitle = topicTitle.replace(/^\d+[\.\:]\s*/, '').trim();
+  const lower = (cleanTitle + ' ' + summary).toLowerCase();
+
+  let question = `Regarding ${cleanTitle}: Which operational response aligns with core protocol?`;
+  let explanation = `Adhering to verified standards and proactive execution preserves structural integrity.`;
+  let correctText = takeaways[0] || `Apply verified operational standards with continuous quality feedback.`;
+  let distractor1 = `Delay communication until external regulators mandate disclosures.`;
+  let distractor2 = `Prioritize rapid delivery while suppressing anomalous telemetry.`;
+
+  if (lower.includes('speed') || lower.includes('acknowledge') || lower.includes('triage') || lower.includes('first')) {
+    question = `Regarding ${cleanTitle}: What is the primary communication priority during initial incident response?`;
+    correctText = `Acknowledge the situation promptly and confirm an active investigation is underway.`;
+    distractor1 = `Delay all official statements until absolute technical certainty is achieved days later.`;
+    distractor2 = `Deflect accountability by pointing to external service providers and third parties.`;
+    explanation = `Prompt acknowledgement anchors the narrative and prevents speculation from filling the information vacuum.`;
+  } else if (lower.includes('ownership') || lower.includes('pillar') || lower.includes('transparency') || lower.includes('honesty')) {
+    question = `Regarding ${cleanTitle}: How should spokespersons articulate organizational responsibility?`;
+    correctText = `Own verified facts directly, empathize with affected stakeholders, and eliminate passive voice evasion.`;
+    distractor1 = `Use evasive phrases like 'mistakes were made' to shield institutional liability.`;
+    distractor2 = `Refuse to acknowledge any impact until legally compelled by formal subpoenas.`;
+    explanation = `Radical ownership establishes credibility and signals enduring institutional integrity.`;
+  } else if (lower.includes('update') || lower.includes('cadence') || lower.includes('continuous') || lower.includes('schedule')) {
+    question = `Regarding ${cleanTitle}: Why is maintaining an established communication cadence essential?`;
+    correctText = `A regular update cadence dispels uncertainty and prevents panic from taking root.`;
+    distractor1 = `Frequent updates legally exempt the organization from subsequent compliance audits.`;
+    distractor2 = `Continuous public communications can substitute for technical remediation efforts.`;
+    explanation = `Reliable update intervals reassure stakeholders that the situation is managed under active control.`;
+  } else if (lower.includes('statement') || lower.includes('media') || lower.includes('reporter') || lower.includes('messaging') || lower.includes('framework')) {
+    question = `Regarding ${cleanTitle}: What is the designated rule when handling external media inquiries?`;
+    correctText = `Adhere rigorously to verified facts and avoid speculating beyond established parameters.`;
+    distractor1 = `Offer speculative scenarios off-the-record to satisfy inquisitive reporters.`;
+    distractor2 = `Permit unvetted staff members to release independent comments on social media channels.`;
+    explanation = `Discipline around verified facts ensures organizational messaging remains coherent and legally defensible.`;
+  } else if (lower.includes('architecture') || lower.includes('tenet') || lower.includes('foundat') || lower.includes('governance')) {
+    question = `When establishing governance for ${cleanTitle}, what takes precedence?`;
+    correctText = `Defensible baseline standards and verified telemetry validation across all stages.`;
+    distractor1 = `Unverified feature velocity regardless of compliance guardrails.`;
+    distractor2 = `Ad-hoc manual interventions without persistent audit trails.`;
+    explanation = `Operating without explicit architectural guardrails creates compounding technical debt and systemic fragility.`;
+  } else if (lower.includes('observability') || lower.includes('telemetry') || lower.includes('verif') || lower.includes('metric')) {
+    question = `Regarding ${cleanTitle}: How should telemetry and operational logs be handled?`;
+    correctText = `Automated, continuous tracking that immediately commits milestones to the central system.`;
+    distractor1 = `Manual end-of-quarter spreadsheets compiled from memory.`;
+    distractor2 = `Suppressing negative milestone logs to avoid management escalation.`;
+    explanation = `Passive, continuous telemetry ensures anomalous drift is detected prior to deployment.`;
+  } else {
+    if (takeaways.length > 0) {
+      correctText = takeaways[0].replace(/^[-*•]\s*/, '').trim();
+    }
+    question = `Regarding ${cleanTitle}: What is the primary operational rule for consistent execution?`;
+    distractor1 = `Bypass baseline audits to accelerate delivery velocity when under pressure.`;
+    distractor2 = `Postpone stakeholder notifications indefinitely until all residual risk disappears.`;
+    explanation = `Consistently prioritizing verified standards and clear communication safeguards systemic resilience.`;
+  }
+
+  const rawOptions = [
+    { text: correctText, correct: true, feedback: explanation },
+    { text: distractor1, correct: false, feedback: `Incorrect. This creates compounding operational risk and violates verified protocols.` },
+    { text: distractor2, correct: false, feedback: `Incorrect. Bypassing compliance standards leads to systemic institutional failure.` }
+  ];
+
+  const rotation = topicIndex % 3;
+  let options = rawOptions;
+  if (rotation === 1) {
+    options = [rawOptions[1], rawOptions[0], rawOptions[2]];
+  } else if (rotation === 2) {
+    options = [rawOptions[1], rawOptions[2], rawOptions[0]];
+  }
+
+  return {
+    question,
+    explanation,
+    options
+  };
+}
+
+/**
+ * Parses raw lesson text into structured, coherent pedagogical modules.
+ * Accurately decomposes headings, labeled sub-concepts, and distinct bullet points
+ * so that EVERY screen highlights a DIFFERENT sub-topic and carries DIFFERENT key takeaways.
+ */
+function parseCurriculumStructure(rawText: string, lessonTitle: string, targetInstructionalScreens: number = 4): {
   introHook: string;
   objectives: string[];
   topics: ParsedCurriculumTopic[];
@@ -311,12 +423,14 @@ function parseCurriculumStructure(rawText: string, lessonTitle: string): {
   interface RawSection {
     heading: string;
     paragraphs: string[];
-    bullets: string[];
+    labeledConcepts: { label: string; text: string }[];
+    plainBullets: string[];
   }
   const sections: RawSection[] = [];
   let currentHeading = 'Introduction';
   let currentParas: string[] = [];
-  let currentBullets: string[] = [];
+  let currentConcepts: { label: string; text: string }[] = [];
+  let currentPlainBullets: string[] = [];
   let currentParaBuffer: string[] = [];
 
   function flushPara() {
@@ -328,14 +442,16 @@ function parseCurriculumStructure(rawText: string, lessonTitle: string): {
 
   function flushSection() {
     flushPara();
-    if (currentParas.length > 0 || currentBullets.length > 0) {
+    if (currentParas.length > 0 || currentConcepts.length > 0 || currentPlainBullets.length > 0) {
       sections.push({
         heading: currentHeading,
         paragraphs: [...currentParas],
-        bullets: [...currentBullets]
+        labeledConcepts: [...currentConcepts],
+        plainBullets: [...currentPlainBullets]
       });
       currentParas = [];
-      currentBullets = [];
+      currentConcepts = [];
+      currentPlainBullets = [];
     }
   }
 
@@ -345,9 +461,20 @@ function parseCurriculumStructure(rawText: string, lessonTitle: string): {
       continue;
     }
 
+    // Check for labeled sub-concept bullet (e.g. "- Speed of Acknowledgement: Address the situation quickly...")
+    const labeledMatch = /^[-*•]?\s*\**([A-Za-z0-9\s—–\/\(\)&]{3,60})\**[:\–\-]\s*(.+)/.exec(line);
+    if (labeledMatch && !line.startsWith('#')) {
+      flushPara();
+      currentConcepts.push({
+        label: labeledMatch[1].trim(),
+        text: labeledMatch[2].trim()
+      });
+      continue;
+    }
+
     if (/^[-*•]|\d+\.\s/.test(line)) {
       flushPara();
-      currentBullets.push(line.replace(/^[-*•]\s*|\d+\.\s*/, '').trim());
+      currentPlainBullets.push(line.replace(/^[-*•]\s*|\d+\.\s*/, '').trim());
       continue;
     }
 
@@ -387,106 +514,190 @@ function parseCurriculumStructure(rawText: string, lessonTitle: string): {
       `Apply decision frameworks to navigate complex real-world incident scenarios`
     ];
 
-  // 2. Build Thematic Module Topics from Extracted Sections
-  // Filter out introduction section from subsequent topic cards
-  const topicSections = sections.filter((s, idx) => {
-    const isIntro = idx === 0 || s.heading.toLowerCase().includes('introduction') || s.heading.toLowerCase().includes('overview');
-    return !isIntro && (s.paragraphs.length > 0 || s.bullets.length > 0);
-  });
-  const topics: ParsedCurriculumTopic[] = [];
+  // 2. Build Thematic Module Topics from Extracted Sections & Sub-Concepts
+  interface IntermediateTopic {
+    title: string;
+    summary: string;
+    detail: string;
+    takeaways: string[];
+  }
+  const intermediate: IntermediateTopic[] = [];
 
-  if (topicSections.length >= 1) {
-    topicSections.forEach((sec, idx) => {
+  const nonIntroSections = sections.filter((s, idx) => {
+    const isIntro = idx === 0 || s.heading.toLowerCase().includes('introduction') || s.heading.toLowerCase().includes('overview');
+    return !isIntro && (s.paragraphs.length > 0 || s.labeledConcepts.length > 0 || s.plainBullets.length > 0);
+  });
+
+  const poolSections = nonIntroSections.length > 0 ? nonIntroSections : sections;
+
+  for (const sec of poolSections) {
+    if (sec.labeledConcepts.length > 0) {
+      for (const concept of sec.labeledConcepts) {
+        const sentences = (concept.text.match(/[^.!?]+(?:[.!?]+['"]?|$)/g) || [concept.text])
+          .map(s => s.trim())
+          .filter(Boolean);
+        const summary = sentences[0] || concept.text;
+        const detail = sentences.length > 1 
+          ? sentences.slice(1).join(' ').trim() 
+          : `Operating with disciplined protocols in ${concept.label} provides crucial institutional leverage during high-pressure scenarios.`;
+        
+        const labelLower = concept.label.toLowerCase();
+        const textLower = concept.text.toLowerCase();
+        let conceptTakeaways: string[] = [];
+
+        if (labelLower.includes('ownership') || textLower.includes('deflect') || textLower.includes('passive voice')) {
+          conceptTakeaways = [
+            `Eliminate passive evasion such as "mistakes were made"`,
+            `Acknowledge direct stakeholder impact with authentic empathy`,
+            `Commit publicly to transparent root-cause investigations`
+          ];
+        } else if (labelLower.includes('speed') || labelLower.includes('acknowledge')) {
+          conceptTakeaways = [
+            `Acknowledge verified facts quickly before third-party speculation fills the vacuum`,
+            `Confirm active investigation status without making unverified commitments`,
+            `Establish narrative leadership within the golden hour of incident notification`
+          ];
+        } else if (labelLower.includes('update') || labelLower.includes('cadence')) {
+          conceptTakeaways = [
+            `Establish and honor a strict recurring communication cadence`,
+            `Report incremental progress transparently to dispel stakeholder anxiety`,
+            `Designate a single verified source of truth for all operational briefings`
+          ];
+        } else if (labelLower.includes('statement') || labelLower.includes('media') || labelLower.includes('framework')) {
+          conceptTakeaways = [
+            `Align all designated spokespersons around verified talking points`,
+            `Enforce disciplined boundaries against speculating beyond confirmed data`,
+            `Log every external query and official response in central incident records`
+          ];
+        } else if (labelLower.includes('golden rule') || labelLower.includes('pillar') || labelLower.includes('transparency')) {
+          conceptTakeaways = [
+            `Never lie, never speculate, and never say "no comment"`,
+            `Treat "no comment" as an invitation for negative public speculation`,
+            `Communicate verifiable facts promptly to protect institutional trust`
+          ];
+        } else {
+          if (sentences.length >= 2) {
+            conceptTakeaways = [
+              sentences[0],
+              sentences[1],
+              `Enforce consistent protocols for ${concept.label} across all operational stages`
+            ];
+          } else {
+            conceptTakeaways = [
+              `Establish explicit standards and invariant boundaries for ${concept.label}`,
+              `Monitor operational telemetry to detect protocol divergence early`,
+              `Review performance retrospectives to continuously refine execution`
+            ];
+          }
+        }
+        
+        intermediate.push({
+          title: concept.label,
+          summary: extractCompleteSentences(summary, 2),
+          detail: extractCompleteSentences(detail, 2) || detail,
+          takeaways: conceptTakeaways
+        });
+      }
+    } else if (sec.paragraphs.length > 0 || sec.plainBullets.length > 0) {
       const summary = sec.paragraphs[0] || `Understanding the dynamics of ${sec.heading} provides essential operational leverage.`;
       const detail = sec.paragraphs[1] || `Consistent execution requires continuous feedback, automated verification, and scenario-based decision making.`;
+      const takeaways = sec.plainBullets.length >= 2 ? sec.plainBullets.slice(0, 3) : [
+        `Prioritize baseline compliance before accelerating deployment velocity`,
+        `Enforce cryptographic telemetry validation across all operational stages`,
+        `Conduct systematic reviews to eliminate recurring anti-patterns`
+      ];
 
-      topics.push({
-        title: `${idx + 1}. ${sec.heading}`,
+      intermediate.push({
+        title: sec.heading,
         summary: extractCompleteSentences(summary, 2),
         detail: extractCompleteSentences(detail, 2),
-        takeaways: sec.bullets.length >= 2 ? sec.bullets.slice(0, 4) : [
-          `Prioritize baseline compliance before accelerating deployment velocity`,
-          `Enforce cryptographic telemetry validation across all operational stages`,
-          `Conduct systematic reviews to eliminate recurring anti-patterns`
-        ],
-        interactivePrompt: {
-          question: `Regarding ${sec.heading}: What is the primary operational rule?`,
-          options: [
-            { text: 'Establishing proactive governance and repeatable quality', correct: true },
-            { text: 'Maximizing delivery speed regardless of verification', correct: false },
-            { text: 'Bypassing compliance audits to avoid schedule delays', correct: false },
-          ]
-        }
+        takeaways
       });
-    });
-  } else {
-    // If text lacked explicit headings, generate 4 pedagogical topic modules from the content
-    const remainingParas = paragraphs.slice(1);
-    const p1 = remainingParas[0] || `Foundational mechanics provide the baseline architecture for all subsequent operational workflows.`;
-    const p2 = remainingParas[1] || `Strategic decision matrices allow teams to balance delivery pressure against structural integrity.`;
-    const p3 = remainingParas[2] || `Automated telemetry and real-time observability ensure that divergence is detected prior to deployment.`;
-    const p4 = remainingParas[3] || `Rigorous post-execution retrospectives transform isolated incidents into permanent organizational competencies.`;
+    }
+  }
 
-    topics.push({
-      title: '1. Foundational Architecture & Core Tenets',
-      summary: extractCompleteSentences(p1, 2),
-      detail: `Operating without explicit architectural guardrails creates compounding technical debt and systemic fragility.`,
-      takeaways: [
-        'Define explicit boundaries and invariant operating standards',
-        'Decouple emotional reaction from protocol execution',
-        'Establish automated compliance checkpoints at critical handoffs'
-      ],
-      interactivePrompt: {
-        question: 'When establishing foundational architecture, what takes precedence?',
-        options: [
-          { text: 'Defensible baseline standards and verified telemetry', correct: true },
-          { text: 'Unverified feature velocity', correct: false },
-          { text: 'Ad-hoc manual interventions', correct: false },
+  // If intermediate has fewer than targetInstructionalScreens, enrich with distinct phases
+  if (intermediate.length < targetInstructionalScreens) {
+    const defaultTemplates = [
+      {
+        title: 'Foundational Architecture & Core Tenets',
+        summary: paragraphs[1] || `Foundational mechanics provide the baseline architecture for all subsequent operational workflows.`,
+        detail: `Operating without explicit architectural guardrails creates compounding technical debt and systemic fragility.`,
+        takeaways: [
+          'Define explicit boundaries and invariant operating standards',
+          'Decouple emotional reaction from protocol execution',
+          'Establish automated compliance checkpoints at critical handoffs'
+        ]
+      },
+      {
+        title: 'Strategic Governance & Execution Frameworks',
+        summary: paragraphs[2] || `Strategic decision matrices allow teams to balance delivery pressure against structural integrity.`,
+        detail: `High-performing organizations employ standardized decision heuristics to resolve operational dilemmas in high-stakes environments.`,
+        takeaways: [
+          'Quantify trade-offs between velocity and systemic integrity',
+          'Require cryptographic sign-off before committing state changes',
+          'Maintain transparent escalation pathways for blocked protocols'
+        ]
+      },
+      {
+        title: 'Continuous Cadence & Telemetry Observability',
+        summary: paragraphs[3] || `Automated telemetry and real-time observability ensure that divergence is detected prior to deployment.`,
+        detail: `Observability must be continuous and passive, automatically relaying milestone progress directly to the Learning Management System.`,
+        takeaways: [
+          'Stream SCORM data model mutations via standard CMI elements',
+          'Validate learner interaction times and raw score increments',
+          'Guarantee persistent commit on session unload'
+        ]
+      },
+      {
+        title: 'Incident Retrospectives & Risk Mitigation',
+        summary: paragraphs[4] || `Rigorous post-execution retrospectives transform isolated incidents into permanent organizational competencies.`,
+        detail: `Scenario-based learning cements mental models by exposing practitioners to consequences in safe, simulated sandbox conditions.`,
+        takeaways: [
+          'Run periodic simulation drills to stress-test team heuristics',
+          'Audit post-incident root causes with blameless accountability',
+          'Integrate lessons learned directly into automated test suites'
         ]
       }
-    });
+    ];
 
-    topics.push({
-      title: '2. Strategic Governance & Execution Frameworks',
-      summary: extractCompleteSentences(p2, 2),
-      detail: `High-performing organizations employ standardized decision heuristics to resolve operational dilemmas in high-stakes environments.`,
-      takeaways: [
-        'Quantify trade-offs between velocity and systemic integrity',
-        'Require cryptographic sign-off before committing state changes',
-        'Maintain transparent escalation pathways for blocked protocols'
-      ],
-      interactivePrompt: {
-        question: 'How should teams resolve conflict between speed and protocol compliance?',
-        options: [
-          { text: 'Halt and remediate to preserve systemic resilience', correct: true },
-          { text: 'Deploy immediately and address audits later', correct: false },
-          { text: 'Suppress warning telemetry to meet deadlines', correct: false },
-        ]
+    for (const tmpl of defaultTemplates) {
+      if (intermediate.length >= targetInstructionalScreens) break;
+      if (!intermediate.some(item => item.title.toLowerCase() === tmpl.title.toLowerCase())) {
+        intermediate.push({
+          title: tmpl.title,
+          summary: extractCompleteSentences(tmpl.summary, 2),
+          detail: extractCompleteSentences(tmpl.detail, 2),
+          takeaways: [...tmpl.takeaways]
+        });
       }
-    });
+    }
+  }
 
-    topics.push({
-      title: '3. Technical Verification & Observability',
-      summary: extractCompleteSentences(p3, 2),
-      detail: `Observability must be continuous and passive, automatically relaying milestone progress directly to the Learning Management System.`,
-      takeaways: [
-        'Stream SCORM data model mutations via standard CMI elements',
-        'Validate learner interaction times and raw score increments',
-        'Guarantee persistent commit on session unload'
-      ],
-    });
-
-    topics.push({
-      title: '4. Applied Incident Simulator & Risk Mitigation',
-      summary: extractCompleteSentences(p4, 2),
-      detail: `Scenario-based learning cements mental models by exposing practitioners to consequences in safe, simulated sandbox conditions.`,
-      takeaways: [
-        'Run periodic simulation drills to stress-test team heuristics',
-        'Audit post-incident root causes with blameless accountability',
-        'Integrate lessons learned directly into automated test suites'
-      ],
+  // Ensure plainBullets from the text are distributed across the intermediate topics without duplicating
+  const allPlainBullets = nonIntroSections.flatMap(s => s.plainBullets);
+  if (allPlainBullets.length >= intermediate.length) {
+    const chunkSize = Math.max(1, Math.floor(allPlainBullets.length / intermediate.length));
+    intermediate.forEach((top, idx) => {
+      const assigned = allPlainBullets.slice(idx * chunkSize, (idx + 1) * chunkSize);
+      if (assigned.length > 0) {
+        top.takeaways = assigned.slice(0, 3);
+      }
     });
   }
+
+  // Build final ParsedCurriculumTopic list with 1-based numbering and unique interactive prompt
+  const finalCount = Math.max(targetInstructionalScreens, intermediate.length);
+  const topics: ParsedCurriculumTopic[] = intermediate.slice(0, finalCount).map((item, idx) => {
+    const cleanTitle = item.title.replace(/^\d+[\.\:]\s*/, '').trim();
+    return {
+      title: `${idx + 1}. ${cleanTitle}`,
+      summary: extractCompleteSentences(item.summary, 2),
+      detail: extractCompleteSentences(item.detail, 2),
+      takeaways: item.takeaways.map(t => extractCompleteSentences(t, 2) || t),
+      interactivePrompt: generateTopicKnowledgeCheck(cleanTitle, item.summary, item.detail, item.takeaways, idx)
+    };
+  });
 
   return { introHook, objectives, topics };
 }
@@ -551,7 +762,8 @@ export function generateFallbackPackage(payload: {
   const numScreens = Math.max(minRequiredScreens, Math.min(8, settings.targetScreens || 6));
   const manifestXml = generateManifestXml(courseTitle, lessonTitle, settings.scormVersion);
 
-  const { introHook, objectives, topics } = parseCurriculumStructure(lessonContent, lessonTitle);
+  const instructionalCount = Math.max(2, numScreens - (settings.gamification ? 3 : 2));
+  const { introHook, objectives, topics } = parseCurriculumStructure(lessonContent, lessonTitle, instructionalCount);
 
   // Map every media asset to a middle screen (Screen 2 through numScreens - 2)
   const mediaByScreen: Record<number, MediaAsset[]> = {};
@@ -695,10 +907,6 @@ export function generateFallbackPackage(payload: {
       font-size: 0.86rem;
       color: #475569;
       line-height: 1.5;
-      display: -webkit-box;
-      -webkit-line-clamp: 3;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
     }
     
     .callout {
@@ -794,18 +1002,139 @@ export function generateFallbackPackage(payload: {
     .sim-meter-bar { height: 9px; background: #e2e8f0; border-radius: 6px; overflow: hidden; margin: 0.6rem 0 1rem; }
     .sim-meter-fill { height: 100%; width: 75%; background: #3b82f6; transition: width 0.4s ease, background 0.4s ease; }
 
-    /* Interactive Insight Expanders */
-    .insight-box {
+    /* Interactive Knowledge Check Card */
+    .kc-card {
       background: #f8fafc;
-      border: 1px solid #e2e8f0;
-      border-radius: 8px;
-      padding: 0.85rem 1rem;
-      margin: 0.75rem 0;
-      cursor: pointer;
-      transition: all 0.15s;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      padding: 0.95rem 1.15rem;
+      margin: 1rem 0 0.4rem;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.03);
     }
-    .insight-box:hover { border-color: #93c5fd; background: #eff6ff; }
-    .insight-header { display: flex; justify-content: space-between; align-items: center; font-weight: 700; color: #1e293b; font-size: 0.92rem; }
+    .kc-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.6rem;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+    .kc-badge {
+      background: #eff6ff;
+      color: #2563eb;
+      font-size: 0.74rem;
+      font-weight: 700;
+      padding: 0.2rem 0.55rem;
+      border-radius: 20px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .kc-hint {
+      font-size: 0.78rem;
+      color: #64748b;
+      font-weight: 500;
+    }
+    .kc-question {
+      font-size: 0.91rem;
+      font-weight: 700;
+      color: #0f172a;
+      margin: 0 0 0.75rem;
+      line-height: 1.45;
+    }
+    .kc-options {
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+    }
+    .kc-opt-btn {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 0.55rem 0.85rem;
+      cursor: pointer;
+      text-align: left;
+      font-size: 0.86rem;
+      color: #334155;
+      font-family: inherit;
+      transition: all 0.15s ease;
+      width: 100%;
+    }
+    .kc-opt-btn:hover:not(:disabled) {
+      background: #f1f5f9;
+      border-color: #94a3b8;
+      color: #0f172a;
+    }
+    .kc-opt-letter {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      background: #e2e8f0;
+      color: #475569;
+      font-weight: 700;
+      font-size: 0.76rem;
+      border-radius: 50%;
+      flex-shrink: 0;
+      margin-top: 1px;
+      transition: all 0.15s ease;
+    }
+    .kc-opt-text {
+      flex: 1;
+      line-height: 1.4;
+      font-weight: 500;
+    }
+    .kc-opt-btn.correct-choice {
+      background: #16a34a !important;
+      border-color: #16a34a !important;
+      color: #ffffff !important;
+    }
+    .kc-opt-btn.correct-choice .kc-opt-letter {
+      background: #ffffff !important;
+      color: #16a34a !important;
+    }
+    .kc-opt-btn.wrong-choice {
+      background: #dc2626 !important;
+      border-color: #dc2626 !important;
+      color: #ffffff !important;
+    }
+    .kc-opt-btn.wrong-choice .kc-opt-letter {
+      background: #ffffff !important;
+      color: #dc2626 !important;
+    }
+    .kc-opt-btn.reveal-answer {
+      background: #f0fdf4 !important;
+      border-color: #22c55e !important;
+      color: #15803d !important;
+    }
+    .kc-opt-btn.reveal-answer .kc-opt-letter {
+      background: #22c55e !important;
+      color: #ffffff !important;
+    }
+    .kc-feedback {
+      margin-top: 0.75rem;
+      padding: 0.65rem 0.9rem;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      line-height: 1.45;
+      font-weight: 500;
+      display: none;
+    }
+    .kc-feedback.success {
+      background: #f0fdf4;
+      border: 1px solid #86efac;
+      color: #166534;
+      display: block;
+    }
+    .kc-feedback.error {
+      background: #fef2f2;
+      border: 1px solid #fca5a5;
+      color: #991b1b;
+      display: block;
+    }
 
     /* Pinned Footer */
     footer {
@@ -936,11 +1265,37 @@ export function generateFallbackPackage(payload: {
       <!-- Middle Instructional Screens (Content-First with Embedded Exhibits) -->
       ${Array.from({ length: numScreens - 2 }, (_, idx) => {
         const screenIndex = idx + 2;
-        const topic = topics[idx % topics.length];
-        const screenMedia = mediaByScreen[screenIndex] || [];
         const isGameScreen = (screenIndex === numScreens - 1 && settings.gamification);
 
         if (isGameScreen) {
+          const isCrisis = lessonTitle.toLowerCase().includes('crisis') || lessonTitle.toLowerCase().includes('media') || lessonTitle.toLowerCase().includes('message');
+          const dilemmaTitle = isCrisis 
+            ? 'Strategic Dilemma: Real-Time Media Triage' 
+            : 'Operational Dilemma: Critical Protocol Bypass Detected';
+          const dilemmaBody = isCrisis
+            ? 'An unverified allegation is circulating on social channels before the investigation completes. Reporters are pressing for an immediate on-the-record statement.'
+            : 'During sprint execution, an unverified shortcut was discovered. Halting to remediate delays delivery by 2 hours, but proceeding without audit risks systemic compromise.';
+          const opt1Label = isCrisis
+            ? 'Acknowledge Immediately & Commit to 60-Minute Update (Narrative Control)'
+            : 'Halt & Remediate (Prioritize Integrity)';
+          const opt2Label = isCrisis
+            ? 'Issue Blanket Denial Without System Verification (High Risk)'
+            : 'Deploy Immediately (Prioritize Velocity)';
+          const fb1 = isCrisis
+            ? '✅ Pass: Immediate acknowledgement anchors the narrative (+25% Health).'
+            : '✅ Pass: Remediating preserves systemic integrity (+25% Health).';
+          const fb2 = isCrisis
+            ? '❌ Fail: Blanket denials without facts shatter institutional credibility (-35% Health).'
+            : '❌ Fail: Bypassing creates critical unmitigated risk (-35% Health).';
+          const checkQ = isCrisis
+            ? '"Issuing \'No comment\' to journalists during an active investigation":'
+            : '"Audit logs must be cryptographically timestamped and committed on completion":';
+          const checkOpt1 = isCrisis ? 'High-Risk Failure' : 'Optional Recommendation';
+          const checkOpt2 = isCrisis ? 'Mandatory Policy' : 'Mandatory Policy';
+          const checkOpt3 = isCrisis ? 'Informational Only' : 'Informational Only';
+          const opt1IsCorrect = isCrisis ? true : false;
+          const opt2IsCorrect = isCrisis ? false : true;
+
           return `
           <!-- Screen ${screenIndex}: Interactive Gamification & Decision Simulator -->
           <section class="screen" data-screen="${screenIndex}">
@@ -961,16 +1316,16 @@ export function generateFallbackPackage(payload: {
               </div>
 
               <div class="game-item" id="sim-scenario-box">
-                <strong style="color:#0f172a; font-size:0.94rem;">Operational Dilemma: Critical Protocol Bypass Detected</strong>
+                <strong style="color:#0f172a; font-size:0.94rem;">${escapeXml(dilemmaTitle)}</strong>
                 <p style="margin:0; font-size:0.88rem; color:#475569;">
-                  During sprint execution, an unverified shortcut was discovered. Halting to remediate delays delivery by 2 hours, but proceeding without audit risks systemic compromise.
+                  ${escapeXml(dilemmaBody)}
                 </p>
                 <div class="game-btn-group" id="decision-buttons" style="margin-top:0.4rem;">
-                  <button class="btn-pill" onclick="handleDecision(this, 25, '✅ Pass: Remediating preserves systemic integrity (+25% Health).', true)">
-                    Halt & Remediate (Prioritize Integrity)
+                  <button class="btn-pill" onclick="handleDecision(this, 25, '${escapeXml(fb1)}', true)">
+                    ${escapeXml(opt1Label)}
                   </button>
-                  <button class="btn-pill" onclick="handleDecision(this, -35, '❌ Fail: Bypassing creates critical unmitigated risk (-35% Health).', false)">
-                    Deploy Immediately (Prioritize Velocity)
+                  <button class="btn-pill" onclick="handleDecision(this, -35, '${escapeXml(fb2)}', false)">
+                    ${escapeXml(opt2Label)}
                   </button>
                 </div>
                 <div id="decision-feedback" style="display:none; font-size:0.85rem; font-weight:600; padding:0.5rem 0.75rem; border-radius:6px; margin-top:0.4rem;"></div>
@@ -980,17 +1335,21 @@ export function generateFallbackPackage(payload: {
               <div style="margin-top: 1rem;">
                 <strong style="color:#0f172a; font-size:0.92rem; display:block; margin-bottom:0.4rem;">Knowledge Check: Categorize this requirement:</strong>
                 <div class="game-item">
-                  <span style="font-size:0.88rem; font-weight:500;">"Audit logs must be cryptographically timestamped and committed on completion":</span>
+                  <span style="font-size:0.88rem; font-weight:500;">${escapeXml(checkQ)}</span>
                   <div class="game-btn-group">
-                    <button class="btn-pill" onclick="checkClassification(this, false)">Optional Recommendation</button>
-                    <button class="btn-pill" onclick="checkClassification(this, true)">Mandatory Policy</button>
-                    <button class="btn-pill" onclick="checkClassification(this, false)">Informational Only</button>
+                    <button class="btn-pill" onclick="checkClassification(this, ${opt1IsCorrect})">${escapeXml(checkOpt1)}</button>
+                    <button class="btn-pill" onclick="checkClassification(this, ${opt2IsCorrect})">${escapeXml(checkOpt2)}</button>
+                    <button class="btn-pill" onclick="checkClassification(this, false)">${escapeXml(checkOpt3)}</button>
                   </div>
                 </div>
               </div>
             </div>
           </section>`;
         }
+
+        const instructionalIdx = idx;
+        const topic = topics[instructionalIdx] || topics[0];
+        const screenMedia = mediaByScreen[screenIndex] || [];
 
         // Standard instructional screen: Title is the curriculum topic, media is embedded as supporting exhibit
         return `
@@ -1017,14 +1376,25 @@ export function generateFallbackPackage(payload: {
           </ul>
 
           ${topic.interactivePrompt ? `
-            <div class="insight-box" onclick="this.classList.toggle('expanded')">
-              <div class="insight-header">
-                <span>🤔 Reflective Check: ${escapeXml(topic.interactivePrompt.question)}</span>
-                <span style="font-size: 0.8rem; color: #2563eb;">Show Answer ▾</span>
+            <div class="kc-card" id="kc-box-${screenIndex}">
+              <div class="kc-header">
+                <span class="kc-badge">⚡ Interactive Knowledge Check</span>
+                <span class="kc-hint">Select the best answer to test your understanding:</span>
               </div>
-              <p style="margin: 0.4rem 0 0; font-size: 0.86rem; color: #059669; font-weight: 600;">
-                ✓ Correct Answer: ${escapeXml(topic.interactivePrompt.options.find(o => o.correct)?.text || 'Establishing proactive governance and repeatable quality')}
-              </p>
+              <p class="kc-question">${escapeXml(topic.interactivePrompt.question)}</p>
+              <div class="kc-options" id="kc-options-${screenIndex}">
+                ${topic.interactivePrompt.options.map((opt, oIdx) => `
+                  <button 
+                    type="button" 
+                    class="kc-opt-btn" 
+                    data-correct="${opt.correct}"
+                    onclick="submitKnowledgeCheck(this, ${screenIndex}, ${opt.correct}, '${escapeXml(opt.feedback.replace(/'/g, "\\'"))}')">
+                    <span class="kc-opt-letter">${String.fromCharCode(65 + oIdx)}</span>
+                    <span class="kc-opt-text">${escapeXml(opt.text)}</span>
+                  </button>
+                `).join('')}
+              </div>
+              <div class="kc-feedback" id="kc-feedback-${screenIndex}"></div>
             </div>
           ` : ''}
         </section>`;
@@ -1198,6 +1568,46 @@ export function generateFallbackPackage(payload: {
 
       if (window.ScormAdapter) {
         window.ScormAdapter.saveProgress('screen_' + currentScreen, currentScore, false);
+      }
+    }
+
+    /* Interactive Knowledge Check handler */
+    function submitKnowledgeCheck(btn, screenIdx, isCorrect, explanation) {
+      var container = document.getElementById('kc-options-' + screenIdx);
+      if (!container) return;
+
+      var buttons = container.querySelectorAll('.kc-opt-btn');
+      buttons.forEach(function(b) {
+        b.disabled = true;
+        b.style.cursor = 'default';
+      });
+
+      var fb = document.getElementById('kc-feedback-' + screenIdx);
+      if (isCorrect) {
+        btn.classList.add('correct-choice');
+        currentScore = Math.min(100, currentScore + 10);
+        if (fb) {
+          fb.className = 'kc-feedback success';
+          fb.innerHTML = '<strong>✅ Correct!</strong> ' + explanation;
+          fb.style.display = 'block';
+        }
+      } else {
+        btn.classList.add('wrong-choice');
+        buttons.forEach(function(b) {
+          if (b.getAttribute('data-correct') === 'true') {
+            b.classList.add('reveal-answer');
+          }
+        });
+        currentScore = Math.max(10, currentScore - 5);
+        if (fb) {
+          fb.className = 'kc-feedback error';
+          fb.innerHTML = '<strong>❌ Incorrect.</strong> ' + explanation;
+          fb.style.display = 'block';
+        }
+      }
+
+      if (window.ScormAdapter) {
+        window.ScormAdapter.saveProgress('screen_' + screenIdx, currentScore, false);
       }
     }
 
