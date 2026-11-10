@@ -40,7 +40,7 @@ export const DEFAULT_CLOUD_SETTINGS: CloudAccountSettings = {
   customAi: {
     provider: 'gemini',
     apiKey: '',
-    model: 'gemini-3.8-flash',
+    model: 'gemini-2.5-flash',
     baseUrl: '',
   },
 };

@@ -270,6 +270,18 @@ interface ParsedCurriculumTopic {
 }
 
 /**
+ * Extracts complete, well-formed grammatical sentences without mid-word truncations.
+ */
+function extractCompleteSentences(text: string, maxSentences: number = 2): string {
+  if (!text) return '';
+  const trimmed = text.trim();
+  const sentences = trimmed.match(/[^.!?]+(?:[.!?]+['"]?|$)/g);
+  if (!sentences || sentences.length === 0) return trimmed;
+  const cleanList = sentences.map(s => s.trim()).filter(Boolean);
+  return cleanList.slice(0, maxSentences).join(' ');
+}
+
+/**
  * Parses raw lesson text into structured, coherent pedagogical modules.
  * Accurately extracts real titles, prevents text dumping, and aligns media as exhibits.
  */
@@ -363,14 +375,8 @@ function parseCurriculumStructure(rawText: string, lessonTitle: string): {
     introHook = `Master the foundational doctrines, risk parameters, and execution frameworks of ${lessonTitle}.`;
   }
 
-  // Truncate intro hook if too long (max 2 clean sentences, under 180 chars)
-  if (introHook.length > 180) {
-    const sentences = introHook.split(/(?<=[.?!])\s+/);
-    introHook = sentences.slice(0, 2).join(' ');
-    if (introHook.length > 200) {
-      introHook = introHook.slice(0, 197) + '...';
-    }
-  }
+  // Synthesize clean intro hook (1-2 complete sentences, never truncated mid-word)
+  introHook = extractCompleteSentences(introHook, 2);
 
   // Synthesize 3 concrete learning objectives
   const objectives: string[] = rawBullets.length >= 3 
@@ -396,8 +402,8 @@ function parseCurriculumStructure(rawText: string, lessonTitle: string): {
 
       topics.push({
         title: `${idx + 1}. ${sec.heading}`,
-        summary: summary.length > 220 ? summary.split(/(?<=[.?!])\s+/).slice(0, 2).join(' ') : summary,
-        detail: detail.length > 220 ? detail.split(/(?<=[.?!])\s+/).slice(0, 2).join(' ') : detail,
+        summary: extractCompleteSentences(summary, 2),
+        detail: extractCompleteSentences(detail, 2),
         takeaways: sec.bullets.length >= 2 ? sec.bullets.slice(0, 4) : [
           `Prioritize baseline compliance before accelerating deployment velocity`,
           `Enforce cryptographic telemetry validation across all operational stages`,
@@ -423,7 +429,7 @@ function parseCurriculumStructure(rawText: string, lessonTitle: string): {
 
     topics.push({
       title: '1. Foundational Architecture & Core Tenets',
-      summary: p1.length > 220 ? p1.split(/(?<=[.?!])\s+/).slice(0, 2).join(' ') : p1,
+      summary: extractCompleteSentences(p1, 2),
       detail: `Operating without explicit architectural guardrails creates compounding technical debt and systemic fragility.`,
       takeaways: [
         'Define explicit boundaries and invariant operating standards',
@@ -442,7 +448,7 @@ function parseCurriculumStructure(rawText: string, lessonTitle: string): {
 
     topics.push({
       title: '2. Strategic Governance & Execution Frameworks',
-      summary: p2.length > 220 ? p2.split(/(?<=[.?!])\s+/).slice(0, 2).join(' ') : p2,
+      summary: extractCompleteSentences(p2, 2),
       detail: `High-performing organizations employ standardized decision heuristics to resolve operational dilemmas in high-stakes environments.`,
       takeaways: [
         'Quantify trade-offs between velocity and systemic integrity',
@@ -461,7 +467,7 @@ function parseCurriculumStructure(rawText: string, lessonTitle: string): {
 
     topics.push({
       title: '3. Technical Verification & Observability',
-      summary: p3.length > 220 ? p3.split(/(?<=[.?!])\s+/).slice(0, 2).join(' ') : p3,
+      summary: extractCompleteSentences(p3, 2),
       detail: `Observability must be continuous and passive, automatically relaying milestone progress directly to the Learning Management System.`,
       takeaways: [
         'Stream SCORM data model mutations via standard CMI elements',
@@ -472,7 +478,7 @@ function parseCurriculumStructure(rawText: string, lessonTitle: string): {
 
     topics.push({
       title: '4. Applied Incident Simulator & Risk Mitigation',
-      summary: p4.length > 220 ? p4.split(/(?<=[.?!])\s+/).slice(0, 2).join(' ') : p4,
+      summary: extractCompleteSentences(p4, 2),
       detail: `Scenario-based learning cements mental models by exposing practitioners to consequences in safe, simulated sandbox conditions.`,
       takeaways: [
         'Run periodic simulation drills to stress-test team heuristics',
@@ -684,7 +690,16 @@ export function generateFallbackPackage(payload: {
       box-shadow: 0 2px 6px rgba(0,0,0,0.03);
     }
     .info-card strong { color: #0f172a; display: block; margin-bottom: 0.3rem; font-size: 0.96rem; }
-    .info-card p { margin: 0; font-size: 0.86rem; color: #475569; line-height: 1.5; }
+    .info-card p {
+      margin: 0;
+      font-size: 0.86rem;
+      color: #475569;
+      line-height: 1.5;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
     
     .callout {
       background: #eff6ff;
@@ -908,7 +923,7 @@ export function generateFallbackPackage(payload: {
           ${topics.slice(0, 3).map((t, i) => `
             <div class="info-card">
               <strong>${escapeXml(t.title)}</strong>
-              <p>${escapeXml(t.summary.slice(0, 95))}...</p>
+              <p>${escapeXml(extractCompleteSentences(t.summary, 1))}</p>
             </div>
           `).join('')}
         </div>

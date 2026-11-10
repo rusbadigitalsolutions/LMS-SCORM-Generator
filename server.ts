@@ -36,7 +36,7 @@ app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
     hasApiKey: Boolean(process.env.GEMINI_API_KEY),
-    model: 'gemini-3.8-flash',
+    model: 'gemini-2.5-flash',
     cloudProviders: ['google_drive', 'google_docs', 'dropbox', 'cloudinary', 'custom_url'],
     timestamp: new Date().toISOString(),
   });
@@ -238,12 +238,12 @@ app.post('/api/generate-scorm', async (req, res) => {
   if (provider === 'openrouter' || provider === 'groq' || provider === 'openai' || provider === 'ollama') {
     const apiKey = cloudAiConfig?.apiKey || '';
     let endpoint = 'https://openrouter.ai/api/v1/chat/completions';
-    let defaultModel = 'meta-llama/llama-3.3-70b-instruct:free';
+    let defaultModel = 'google/gemini-2.0-flash-exp:free';
     const extraHeaders: Record<string, string> = {};
 
     if (provider === 'openrouter') {
       endpoint = 'https://openrouter.ai/api/v1/chat/completions';
-      defaultModel = 'meta-llama/llama-3.3-70b-instruct:free';
+      defaultModel = 'google/gemini-2.0-flash-exp:free';
       extraHeaders['HTTP-Referer'] = process.env.APP_URL || 'https://lms-scorm-generator.local';
       extraHeaders['X-Title'] = 'LMS SCORM Generator';
     } else if (provider === 'groq') {
@@ -257,12 +257,18 @@ app.post('/api/generate-scorm', async (req, res) => {
       defaultModel = 'llama3';
     }
 
-    const targetModel = cloudAiConfig?.model || defaultModel;
+    let initialModel = cloudAiConfig?.model || defaultModel;
+    // If user has old deprecated free llama slug, normalize it
+    if (initialModel === 'meta-llama/llama-3.3-70b-instruct:free') {
+      initialModel = 'meta-llama/llama-3.3-70b-instruct';
+    }
 
     if (apiKey || provider === 'ollama') {
       try {
-        console.log(`Calling ${provider} API with model: ${targetModel}`);
-        const responseText = await (async () => {
+        let finalModelUsed = initialModel;
+        const executeChat = async (modelToUse: string, retryCount: number = 0): Promise<string> => {
+          finalModelUsed = modelToUse;
+          console.log(`Calling ${provider} API with model: ${modelToUse} (attempt ${retryCount + 1})`);
           const res = await fetch(endpoint, {
             method: 'POST',
             headers: {
@@ -271,7 +277,7 @@ app.post('/api/generate-scorm', async (req, res) => {
               ...extraHeaders,
             },
             body: JSON.stringify({
-              model: targetModel,
+              model: modelToUse,
               messages: [
                 { role: 'system', content: systemInstruction },
                 { role: 'user', content: userPrompt },
@@ -283,13 +289,34 @@ app.post('/api/generate-scorm', async (req, res) => {
 
           if (!res.ok) {
             const errText = await res.text();
+            
+            // Auto-recovery 1: OpenRouter tells us to use an alternate slug (e.g. "use this slug instead: <slug>")
+            if (retryCount === 0) {
+              const slugMatch = errText.match(/use this slug instead:\s*([a-zA-Z0-9_\-\/\.:]+)/i);
+              if (slugMatch && slugMatch[1] && slugMatch[1].trim() !== modelToUse) {
+                const suggested = slugMatch[1].trim();
+                console.log(`OpenRouter suggested alternate model '${suggested}', retrying automatically...`);
+                return executeChat(suggested, retryCount + 1);
+              }
+
+              // Auto-recovery 2: If a :free model 404s on OpenRouter, try an active free model
+              if (provider === 'openrouter' && (res.status === 404 || errText.includes('unavailable'))) {
+                const altFree = 'google/gemini-2.0-flash-exp:free';
+                if (modelToUse !== altFree) {
+                  console.log(`Model ${modelToUse} returned 404, falling back to active free model: ${altFree}`);
+                  return executeChat(altFree, retryCount + 1);
+                }
+              }
+            }
+
             throw new Error(`${provider} returned HTTP ${res.status}: ${errText}`);
           }
 
           const data = await res.json();
           return data.choices?.[0]?.message?.content || '';
-        })();
+        };
 
+        const responseText = await executeChat(initialModel);
         let parsed: { indexHtml?: string; manifestXml?: string } = {};
         try {
           parsed = JSON.parse(responseText);
@@ -319,7 +346,7 @@ app.post('/api/generate-scorm', async (req, res) => {
           }
 
           return res.json({
-            source: `${provider} (${targetModel})`,
+            source: `${provider} (${finalModelUsed})`,
             files: {
               'index.html': html,
               'imsmanifest.xml': manifest,
@@ -330,7 +357,7 @@ app.post('/api/generate-scorm', async (req, res) => {
                 lessonTitle: payload.lessonTitle,
                 settings: payload.settings,
                 mediaAssets: payload.mediaAssets,
-                generatedWith: `${provider} (${targetModel})`,
+                generatedWith: `${provider} (${finalModelUsed})`,
                 generatedAt: new Date().toISOString(),
               }, null, 2),
             },
@@ -363,15 +390,36 @@ app.post('/api/generate-scorm', async (req, res) => {
 
   if (activeAi && userApiKey) {
     try {
-      const targetModel = cloudAiConfig?.model || 'gemini-3.8-flash';
-      const response = await activeAi.models.generateContent({
-        model: targetModel,
-        contents: userPrompt,
-        config: {
-          systemInstruction,
-          responseMimeType: 'application/json',
-        },
-      });
+      let targetModel = cloudAiConfig?.model || 'gemini-2.5-flash';
+      if (targetModel === 'gemini-3.8-flash' || targetModel.includes('3.8')) {
+        targetModel = 'gemini-2.5-flash';
+      }
+
+      const executeGemini = async (modelName: string) => {
+        console.log(`Calling Gemini API with model: ${modelName}`);
+        return await activeAi!.models.generateContent({
+          model: modelName,
+          contents: userPrompt,
+          config: {
+            systemInstruction,
+            responseMimeType: 'application/json',
+          },
+        });
+      };
+
+      let response;
+      try {
+        response = await executeGemini(targetModel);
+      } catch (geminiErr: any) {
+        if (geminiErr?.message?.includes('404') || geminiErr?.status === 404 || geminiErr?.message?.includes('not found')) {
+          const fallbackModel = targetModel === 'gemini-2.5-flash' ? 'gemini-1.5-flash' : 'gemini-2.5-flash';
+          console.warn(`Gemini model ${targetModel} not found (404), auto-retrying with ${fallbackModel}...`);
+          targetModel = fallbackModel;
+          response = await executeGemini(fallbackModel);
+        } else {
+          throw geminiErr;
+        }
+      }
 
       const responseText = response.text || '';
       let parsed: { indexHtml?: string; manifestXml?: string } = {};
@@ -404,7 +452,7 @@ app.post('/api/generate-scorm', async (req, res) => {
         }
 
         return res.json({
-          source: 'gemini-3.8-flash',
+          source: targetModel,
           files: {
             'index.html': html,
             'imsmanifest.xml': manifest,
@@ -415,7 +463,7 @@ app.post('/api/generate-scorm', async (req, res) => {
               lessonTitle: payload.lessonTitle,
               settings: payload.settings,
               mediaAssets: payload.mediaAssets,
-              generatedWith: 'gemini-3.8-flash',
+              generatedWith: targetModel,
               generatedAt: new Date().toISOString(),
             }, null, 2),
           },

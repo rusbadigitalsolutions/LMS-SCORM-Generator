@@ -230,8 +230,8 @@ export const CloudAccountsModal: React.FC<CloudAccountsModalProps> = ({
                     onChange={(e) => {
                       const prov = e.target.value as any;
                       let defaultModel = form.customAi.model;
-                      if (prov === 'openrouter') defaultModel = 'meta-llama/llama-3.3-70b-instruct:free';
-                      else if (prov === 'gemini') defaultModel = 'gemini-3.8-flash';
+                      if (prov === 'openrouter') defaultModel = 'google/gemini-2.0-flash-exp:free';
+                      else if (prov === 'gemini') defaultModel = 'gemini-2.5-flash';
                       else if (prov === 'groq') defaultModel = 'llama-3.3-70b-versatile';
                       else if (prov === 'openai') defaultModel = 'gpt-4o';
                       else if (prov === 'anthropic') defaultModel = 'claude-3-5-sonnet-20241022';
@@ -271,7 +271,7 @@ export const CloudAccountsModal: React.FC<CloudAccountsModalProps> = ({
                       ...form,
                       customAi: { ...form.customAi, model: e.target.value }
                     })}
-                    placeholder={form.customAi.provider === 'openrouter' ? 'meta-llama/llama-3.3-70b-instruct:free' : 'gemini-3.8-flash'}
+                    placeholder={form.customAi.provider === 'openrouter' ? 'google/gemini-2.0-flash-exp:free' : 'gemini-2.5-flash'}
                     className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500 font-mono text-[11px]"
                   />
                 </div>
@@ -293,8 +293,9 @@ export const CloudAccountsModal: React.FC<CloudAccountsModalProps> = ({
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {[
-                      { label: 'Llama 3.3 70B (Free)', id: 'meta-llama/llama-3.3-70b-instruct:free', badge: 'FREE' },
                       { label: 'Gemini 2.0 Flash (Free)', id: 'google/gemini-2.0-flash-exp:free', badge: 'FREE' },
+                      { label: 'Llama 3.3 70B', id: 'meta-llama/llama-3.3-70b-instruct', badge: 'PRO' },
+                      { label: 'Llama 3.1 8B (Free)', id: 'meta-llama/llama-3.1-8b-instruct:free', badge: 'FREE' },
                       { label: 'DeepSeek R1 (Free)', id: 'deepseek/deepseek-r1:free', badge: 'FREE' },
                       { label: 'Claude 3.5 Sonnet', id: 'anthropic/claude-3.5-sonnet', badge: 'PRO' },
                       { label: 'GPT-4o', id: 'openai/gpt-4o', badge: 'PRO' },
