@@ -462,7 +462,7 @@ function parseCurriculumStructure(rawText: string, lessonTitle: string, targetIn
     }
 
     // Check for labeled sub-concept bullet (e.g. "- Speed of Acknowledgement: Address the situation quickly...")
-    const labeledMatch = /^[-*•]?\s*\**([A-Za-z0-9\s—–\/\(\)&]{3,60})\**[:\–\-]\s*(.+)/.exec(line);
+    const labeledMatch = /^[-*•]?\s*\**([A-Za-z0-9\s\/\(\)&]{3,60})\**(?::|—|–|\s+-\s+)\s*(.+)/.exec(line);
     if (labeledMatch && !line.startsWith('#')) {
       flushPara();
       currentConcepts.push({
@@ -523,14 +523,8 @@ function parseCurriculumStructure(rawText: string, lessonTitle: string, targetIn
   }
   const intermediate: IntermediateTopic[] = [];
 
-  const nonIntroSections = sections.filter((s, idx) => {
-    const isIntro = idx === 0 || s.heading.toLowerCase().includes('introduction') || s.heading.toLowerCase().includes('overview');
-    return !isIntro && (s.paragraphs.length > 0 || s.labeledConcepts.length > 0 || s.plainBullets.length > 0);
-  });
-
-  const poolSections = nonIntroSections.length > 0 ? nonIntroSections : sections;
-
-  for (const sec of poolSections) {
+  // A. First, extract all labeled concepts across ALL sections (including intro/overview)
+  for (const sec of sections) {
     if (sec.labeledConcepts.length > 0) {
       for (const concept of sec.labeledConcepts) {
         const sentences = (concept.text.match(/[^.!?]+(?:[.!?]+['"]?|$)/g) || [concept.text])
@@ -550,6 +544,18 @@ function parseCurriculumStructure(rawText: string, lessonTitle: string, targetIn
             `Eliminate passive evasion such as "mistakes were made"`,
             `Acknowledge direct stakeholder impact with authentic empathy`,
             `Commit publicly to transparent root-cause investigations`
+          ];
+        } else if (labelLower.includes('asymmetry') || textLower.includes('asymmetry') || textLower.includes('headlines')) {
+          conceptTakeaways = [
+            `Eliminate information asymmetry by briefing employees before public releases`,
+            `Anchor leadership trust by providing staff with verified internal updates`,
+            `Prevent morale collapse by maintaining open, two-way communication channels`
+          ];
+        } else if (labelLower.includes('leak') || labelLower.includes('speculation') || textLower.includes('rumor')) {
+          conceptTakeaways = [
+            `Prevent rumor mills from filling vacuums by issuing proactive updates`,
+            `Enforce clear boundaries on external speculation and social media commentary`,
+            `Designate official communication channels to protect internal integrity`
           ];
         } else if (labelLower.includes('speed') || labelLower.includes('acknowledge')) {
           conceptTakeaways = [
@@ -598,31 +604,150 @@ function parseCurriculumStructure(rawText: string, lessonTitle: string, targetIn
           takeaways: conceptTakeaways
         });
       }
-    } else if (sec.paragraphs.length > 0 || sec.plainBullets.length > 0) {
-      const summary = sec.paragraphs[0] || `Understanding the dynamics of ${sec.heading} provides essential operational leverage.`;
-      const detail = sec.paragraphs[1] || `Consistent execution requires continuous feedback, automated verification, and scenario-based decision making.`;
-      const takeaways = sec.plainBullets.length >= 2 ? sec.plainBullets.slice(0, 3) : [
-        `Prioritize baseline compliance before accelerating deployment velocity`,
-        `Enforce cryptographic telemetry validation across all operational stages`,
-        `Conduct systematic reviews to eliminate recurring anti-patterns`
-      ];
-
-      intermediate.push({
-        title: sec.heading,
-        summary: extractCompleteSentences(summary, 2),
-        detail: extractCompleteSentences(detail, 2),
-        takeaways
-      });
     }
   }
 
-  // If intermediate has fewer than targetInstructionalScreens, enrich with distinct phases
+  // B. Process non-intro sections (unpacking task/assignment sections and standard instructional sections)
+  for (const sec of sections) {
+    const headingLower = sec.heading.toLowerCase().trim();
+    const isIntro = headingLower.includes('introduction') || headingLower.includes('overview') || headingLower === 'lesson overview';
+    if (isIntro) continue;
+
+    const isGenericTask = headingLower.includes('task') || 
+                          headingLower.includes('assignment') || 
+                          headingLower.includes('action') || 
+                          headingLower.includes('exercise') || 
+                          headingLower.includes('deliverable') || 
+                          headingLower.includes('practice');
+
+    if (isGenericTask && sec.plainBullets.length > 0) {
+      // Unpack each substantial plain bullet into its own dedicated instructional module
+      for (const bullet of sec.plainBullets) {
+        const bLower = bullet.toLowerCase();
+        let topicTitle = '';
+        let topicSummary = '';
+        let topicDetail = '';
+        let topicTakeaways: string[] = [];
+
+        if (bLower.includes('ceo') || bLower.includes('employee') || bLower.includes('internal email') || bLower.includes('all employees')) {
+          topicTitle = 'Executive Leadership & All-Hands Briefing';
+          topicSummary = 'Drafting an authoritative internal briefing from executive leadership prior to public disclosures aligns staff and eliminates speculation.';
+          topicDetail = 'Direct, transparent communication from executive leadership anchors internal trust and prevents information asymmetry during breaking events.';
+          topicTakeaways = [
+            'Notify internal teams before external press releases go live',
+            'Articulate confirmed facts and commit to transparent root-cause investigations',
+            'Reinforce company confidentiality and designate official spokespersons'
+          ];
+        } else if (bLower.includes('support') || bLower.includes('client') || bLower.includes('customer') || bLower.includes('frontline')) {
+          topicTitle = 'Frontline Support & Stakeholder Response Protocols';
+          topicSummary = 'Frontline support teams require actionable scripts and clear escalation boundaries to address incoming customer inquiries.';
+          topicDetail = 'Support agents represent the organization\'s frontline human touchpoint during an escalation; equipping them with verified response matrices prevents unauthorized promises.';
+          topicTakeaways = [
+            'Equip customer-facing staff with clear response matrices and verified FAQs',
+            'Establish strict escalation triggers for media and legal inquiries',
+            'Empathetically acknowledge client concerns without speculating'
+          ];
+        } else if (bLower.includes('board') || bLower.includes('director') || bLower.includes('governance') || bLower.includes('strategic impact')) {
+          topicTitle = 'Board Governance & Strategic Impact Briefing';
+          topicSummary = 'Executive governance requires structured briefing notes detailing business continuity, regulatory risk, and strategic impact.';
+          topicDetail = 'Board members and fiduciary stakeholders must receive regular, high-signal updates outlining operational resilience and long-term risk containment.';
+          topicTakeaways = [
+            'Summarize operational, legal, and financial exposures succinctly',
+            'Detail forensic containment measures and recovery timelines',
+            'Maintain an auditable trail of leadership decisions and approvals'
+          ];
+        } else {
+          const words = bullet.split(/\s+/);
+          topicTitle = words.slice(0, 6).join(' ').replace(/[,\.:;]+$/, '');
+          topicSummary = extractCompleteSentences(bullet, 2);
+          topicDetail = `Operating with standardized protocols for ${topicTitle} ensures consistent organizational execution under pressure.`;
+          topicTakeaways = [
+            extractCompleteSentences(bullet, 1),
+            `Establish explicit performance thresholds and audit checkpoints`,
+            `Review operational outcomes continuously to refine execution standards`
+          ];
+        }
+
+        if (!intermediate.some(item => item.title.toLowerCase() === topicTitle.toLowerCase())) {
+          intermediate.push({
+            title: topicTitle,
+            summary: topicSummary,
+            detail: topicDetail,
+            takeaways: topicTakeaways
+          });
+        }
+      }
+    } else if (sec.paragraphs.length > 0 || (sec.plainBullets.length > 0 && sec.labeledConcepts.length === 0)) {
+      const cleanHeading = sec.heading.replace(/^#+\s*|\d+[\.\:]\s*/, '').trim();
+      if (!intermediate.some(item => item.title.toLowerCase() === cleanHeading.toLowerCase())) {
+        const summary = sec.paragraphs[0] || `Understanding the dynamics of ${cleanHeading} provides essential operational leverage.`;
+        const detail = sec.paragraphs[1] || `Consistent execution requires continuous feedback, automated verification, and scenario-based decision making.`;
+        const takeaways = sec.plainBullets.length >= 2 ? sec.plainBullets.slice(0, 3) : [
+          `Prioritize verified operational standards before accelerating deployment velocity`,
+          `Enforce transparent telemetry validation across all operational stages`,
+          `Conduct systematic retrospectives to eliminate recurring anti-patterns`
+        ];
+
+        intermediate.push({
+          title: cleanHeading,
+          summary: extractCompleteSentences(summary, 2),
+          detail: extractCompleteSentences(detail, 2),
+          takeaways
+        });
+      }
+    }
+  }
+
+  // C. If intermediate has fewer than targetInstructionalScreens, enrich with domain-contextual templates
+  const contextText = (lessonTitle + ' ' + rawText).toLowerCase();
+  const isCrisisOrComms = contextText.includes('crisis') || 
+                          contextText.includes('reputation') || 
+                          contextText.includes('brand') || 
+                          contextText.includes('media') || 
+                          contextText.includes('communication') || 
+                          contextText.includes('leak') || 
+                          contextText.includes('stakeholder') || 
+                          contextText.includes('internal comm');
+
   if (intermediate.length < targetInstructionalScreens) {
-    const defaultTemplates = [
+    const crisisTemplates = [
       {
-        title: 'Foundational Architecture & Core Tenets',
-        summary: paragraphs[1] || `Foundational mechanics provide the baseline architecture for all subsequent operational workflows.`,
-        detail: `Operating without explicit architectural guardrails creates compounding technical debt and systemic fragility.`,
+        title: 'The 4-Tier Internal Communication Cascade',
+        summary: 'Establish a disciplined internal communication cascade spanning leadership, general staff, frontline support, and board governance.',
+        detail: 'Synchronizing updates across all four organizational tiers ensures consistent alignment and prevents contradictory messaging.',
+        takeaways: [
+          'Brief Tier 1 leadership and crisis teams before wider dissemination',
+          'Deploy actionable response scripts to Tier 3 frontline customer agents',
+          'Provide Tier 4 board members with strategic risk and governance briefs'
+        ]
+      },
+      {
+        title: 'Frontline Enablement & Leak Prevention',
+        summary: 'Frontline agents and internal staff must understand communication boundaries to prevent unverified leaks and rumors.',
+        detail: 'When employees lack official leadership updates, speculation fills the void. Establishing secure feedback loops keeps teams anchored in verified facts.',
+        takeaways: [
+          'Educate staff on confidentiality protocols during breaking events',
+          'Offer an internal anonymous Q&A channel to surface employee concerns',
+          'Track internal sentiment actively through quick pulse surveys'
+        ]
+      },
+      {
+        title: 'Continuous Recovery Cadence & Narrative Leadership',
+        summary: 'Maintaining an ongoing update schedule reassures internal stakeholders and rebuilds institutional credibility.',
+        detail: 'Crisis management does not end with the initial response; sustaining narrative leadership requires ongoing retrospectives and root-cause remediation.',
+        takeaways: [
+          'Publish recurring post-incident progress reports on designated channels',
+          'Conduct blameless retrospectives to remediate operational gaps',
+          'Celebrate frontline resiliency and reaffirm core institutional values'
+        ]
+      }
+    ];
+
+    const standardTemplates = [
+      {
+        title: 'Foundational Architecture & Core Standards',
+        summary: 'Foundational operating principles establish baseline invariants for all operational workflows.',
+        detail: 'Operating without explicit architectural guardrails creates compounding debt and systemic fragility.',
         takeaways: [
           'Define explicit boundaries and invariant operating standards',
           'Decouple emotional reaction from protocol execution',
@@ -630,38 +755,29 @@ function parseCurriculumStructure(rawText: string, lessonTitle: string, targetIn
         ]
       },
       {
-        title: 'Strategic Governance & Execution Frameworks',
-        summary: paragraphs[2] || `Strategic decision matrices allow teams to balance delivery pressure against structural integrity.`,
-        detail: `High-performing organizations employ standardized decision heuristics to resolve operational dilemmas in high-stakes environments.`,
+        title: 'Strategic Governance & Risk Mitigation',
+        summary: 'Strategic decision matrices allow teams to balance delivery pressure against structural integrity.',
+        detail: 'Standardized heuristics resolve operational dilemmas in high-stakes environments.',
         takeaways: [
           'Quantify trade-offs between velocity and systemic integrity',
-          'Require cryptographic sign-off before committing state changes',
+          'Require sign-off before committing critical state changes',
           'Maintain transparent escalation pathways for blocked protocols'
         ]
       },
       {
         title: 'Continuous Cadence & Telemetry Observability',
-        summary: paragraphs[3] || `Automated telemetry and real-time observability ensure that divergence is detected prior to deployment.`,
-        detail: `Observability must be continuous and passive, automatically relaying milestone progress directly to the Learning Management System.`,
+        summary: 'Automated telemetry and real-time observability ensure divergence is detected prior to deployment.',
+        detail: 'Observability must be continuous and passive, automatically relaying progress to central records.',
         takeaways: [
-          'Stream SCORM data model mutations via standard CMI elements',
+          'Stream data model mutations via standard SCORM CMI elements',
           'Validate learner interaction times and raw score increments',
-          'Guarantee persistent commit on session unload'
-        ]
-      },
-      {
-        title: 'Incident Retrospectives & Risk Mitigation',
-        summary: paragraphs[4] || `Rigorous post-execution retrospectives transform isolated incidents into permanent organizational competencies.`,
-        detail: `Scenario-based learning cements mental models by exposing practitioners to consequences in safe, simulated sandbox conditions.`,
-        takeaways: [
-          'Run periodic simulation drills to stress-test team heuristics',
-          'Audit post-incident root causes with blameless accountability',
-          'Integrate lessons learned directly into automated test suites'
+          'Guarantee persistent state commit on session unload'
         ]
       }
     ];
 
-    for (const tmpl of defaultTemplates) {
+    const activeTemplates = isCrisisOrComms ? crisisTemplates : standardTemplates;
+    for (const tmpl of activeTemplates) {
       if (intermediate.length >= targetInstructionalScreens) break;
       if (!intermediate.some(item => item.title.toLowerCase() === tmpl.title.toLowerCase())) {
         intermediate.push({
@@ -672,18 +788,6 @@ function parseCurriculumStructure(rawText: string, lessonTitle: string, targetIn
         });
       }
     }
-  }
-
-  // Ensure plainBullets from the text are distributed across the intermediate topics without duplicating
-  const allPlainBullets = nonIntroSections.flatMap(s => s.plainBullets);
-  if (allPlainBullets.length >= intermediate.length) {
-    const chunkSize = Math.max(1, Math.floor(allPlainBullets.length / intermediate.length));
-    intermediate.forEach((top, idx) => {
-      const assigned = allPlainBullets.slice(idx * chunkSize, (idx + 1) * chunkSize);
-      if (assigned.length > 0) {
-        top.takeaways = assigned.slice(0, 3);
-      }
-    });
   }
 
   // Build final ParsedCurriculumTopic list with 1-based numbering and unique interactive prompt
@@ -1268,31 +1372,40 @@ export function generateFallbackPackage(payload: {
         const isGameScreen = (screenIndex === numScreens - 1 && settings.gamification);
 
         if (isGameScreen) {
-          const isCrisis = lessonTitle.toLowerCase().includes('crisis') || lessonTitle.toLowerCase().includes('media') || lessonTitle.toLowerCase().includes('message');
+          const fullTextContext = (courseTitle + ' ' + (moduleBadge || '') + ' ' + lessonTitle + ' ' + lessonContent).toLowerCase();
+          const isCrisis = fullTextContext.includes('crisis') || 
+                           fullTextContext.includes('reputation') || 
+                           fullTextContext.includes('media') || 
+                           fullTextContext.includes('brand') || 
+                           fullTextContext.includes('communication') || 
+                           fullTextContext.includes('leak') || 
+                           fullTextContext.includes('stakeholder') || 
+                           fullTextContext.includes('message');
+
           const dilemmaTitle = isCrisis 
-            ? 'Strategic Dilemma: Real-Time Media Triage' 
+            ? 'Strategic Dilemma: Real-Time Crisis & Internal Leak Triage' 
             : 'Operational Dilemma: Critical Protocol Bypass Detected';
           const dilemmaBody = isCrisis
-            ? 'An unverified allegation is circulating on social channels before the investigation completes. Reporters are pressing for an immediate on-the-record statement.'
+            ? 'An unverified internal memo was leaked to social media channels before leadership notified staff. Frontline customer support is overwhelmed by frantic incoming client inquiries.'
             : 'During sprint execution, an unverified shortcut was discovered. Halting to remediate delays delivery by 2 hours, but proceeding without audit risks systemic compromise.';
           const opt1Label = isCrisis
-            ? 'Acknowledge Immediately & Commit to 60-Minute Update (Narrative Control)'
+            ? 'Acknowledge to All Staff Immediately & Deploy Frontline Response Matrix (Narrative Control)'
             : 'Halt & Remediate (Prioritize Integrity)';
           const opt2Label = isCrisis
-            ? 'Issue Blanket Denial Without System Verification (High Risk)'
+            ? 'Impose Blanket Silence and Deny All Reports (Evasion & High Risk)'
             : 'Deploy Immediately (Prioritize Velocity)';
           const fb1 = isCrisis
-            ? '✅ Pass: Immediate acknowledgement anchors the narrative (+25% Health).'
+            ? '✅ Pass: Immediate internal transparency anchors staff, eliminates rumor vacuums, and controls the narrative (+25% Health).'
             : '✅ Pass: Remediating preserves systemic integrity (+25% Health).';
           const fb2 = isCrisis
-            ? '❌ Fail: Blanket denials without facts shatter institutional credibility (-35% Health).'
+            ? '❌ Fail: Denials and silence create severe information asymmetry and destroy institutional trust (-35% Health).'
             : '❌ Fail: Bypassing creates critical unmitigated risk (-35% Health).';
           const checkQ = isCrisis
-            ? '"Issuing \'No comment\' to journalists during an active investigation":'
+            ? '"Employees learn about an ongoing company breach from external news feeds rather than internal leadership":'
             : '"Audit logs must be cryptographically timestamped and committed on completion":';
-          const checkOpt1 = isCrisis ? 'High-Risk Failure' : 'Optional Recommendation';
-          const checkOpt2 = isCrisis ? 'Mandatory Policy' : 'Mandatory Policy';
-          const checkOpt3 = isCrisis ? 'Informational Only' : 'Informational Only';
+          const checkOpt1 = isCrisis ? 'Catastrophic Communication Failure' : 'Optional Recommendation';
+          const checkOpt2 = isCrisis ? 'Standard Operating Procedure' : 'Mandatory Policy';
+          const checkOpt3 = isCrisis ? 'Acceptable Public Relations Strategy' : 'Informational Only';
           const opt1IsCorrect = isCrisis ? true : false;
           const opt2IsCorrect = isCrisis ? false : true;
 

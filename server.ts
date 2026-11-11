@@ -238,12 +238,12 @@ app.post('/api/generate-scorm', async (req, res) => {
   if (provider === 'openrouter' || provider === 'groq' || provider === 'openai' || provider === 'ollama') {
     const apiKey = cloudAiConfig?.apiKey || '';
     let endpoint = 'https://openrouter.ai/api/v1/chat/completions';
-    let defaultModel = 'google/gemini-2.0-flash-exp:free';
+    let defaultModel = 'meta-llama/llama-3.3-70b-instruct';
     const extraHeaders: Record<string, string> = {};
 
     if (provider === 'openrouter') {
       endpoint = 'https://openrouter.ai/api/v1/chat/completions';
-      defaultModel = 'google/gemini-2.0-flash-exp:free';
+      defaultModel = 'meta-llama/llama-3.3-70b-instruct';
       extraHeaders['HTTP-Referer'] = process.env.APP_URL || 'https://lms-scorm-generator.local';
       extraHeaders['X-Title'] = 'LMS SCORM Generator';
     } else if (provider === 'groq') {
@@ -258,9 +258,16 @@ app.post('/api/generate-scorm', async (req, res) => {
     }
 
     let initialModel = cloudAiConfig?.model || defaultModel;
-    // If user has old deprecated free llama slug, normalize it
-    if (initialModel === 'meta-llama/llama-3.3-70b-instruct:free') {
-      initialModel = 'meta-llama/llama-3.3-70b-instruct';
+    if (provider === 'openrouter') {
+      // Map discontinued or deprecated free model slugs to active model on user's key
+      if (
+        !initialModel ||
+        initialModel.includes('2.0-flash-exp') ||
+        initialModel === 'meta-llama/llama-3.3-70b-instruct:free' ||
+        initialModel === 'meta-llama/llama-3.1-8b-instruct:free'
+      ) {
+        initialModel = 'meta-llama/llama-3.3-70b-instruct';
+      }
     }
 
     if (apiKey || provider === 'ollama') {
@@ -299,12 +306,21 @@ app.post('/api/generate-scorm', async (req, res) => {
                 return executeChat(suggested, retryCount + 1);
               }
 
-              // Auto-recovery 2: If a :free model 404s on OpenRouter, try an active free model
-              if (provider === 'openrouter' && (res.status === 404 || errText.includes('unavailable'))) {
-                const altFree = 'google/gemini-2.0-flash-exp:free';
-                if (modelToUse !== altFree) {
-                  console.log(`Model ${modelToUse} returned 404, falling back to active free model: ${altFree}`);
-                  return executeChat(altFree, retryCount + 1);
+              // Auto-recovery 2: If a model 404s or has no provider on OpenRouter, cascade through active models enabled on user's key
+              if (provider === 'openrouter' && (res.status === 404 || errText.includes('unavailable') || errText.includes('no provider'))) {
+                const fallbacks = [
+                  'meta-llama/llama-3.3-70b-instruct',
+                  'nvidia/nemotron-3.5-lightning:free',
+                  'cohere/north-mini-code:free',
+                  'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free',
+                  'liquid/lfm-2.5-2.6b:free',
+                  'nvidia/nemotron-3.5-super-vl:free',
+                ];
+                for (const alt of fallbacks) {
+                  if (modelToUse !== alt) {
+                    console.log(`Model ${modelToUse} returned ${res.status}, falling back to active key model: ${alt}`);
+                    return executeChat(alt, retryCount + 1);
+                  }
                 }
               }
             }
@@ -369,24 +385,25 @@ app.post('/api/generate-scorm', async (req, res) => {
     }
   }
 
-  // 2. Google Gemini API Execution Path
-  const userApiKey = cloudAiConfig?.apiKey || process.env.GEMINI_API_KEY;
-  let activeAi = ai;
+  // 2. Google Gemini API Execution Path (ONLY execute when provider is 'gemini')
+  if (provider === 'gemini') {
+    const userApiKey = cloudAiConfig?.apiKey || process.env.GEMINI_API_KEY;
+    let activeAi = ai;
 
-  if (cloudAiConfig?.apiKey && cloudAiConfig.apiKey !== process.env.GEMINI_API_KEY) {
-    try {
-      activeAi = new GoogleGenAI({
-        apiKey: cloudAiConfig.apiKey,
-        httpOptions: {
-          headers: {
-            'User-Agent': 'aistudio-build',
+    if (cloudAiConfig?.apiKey && cloudAiConfig.apiKey !== process.env.GEMINI_API_KEY) {
+      try {
+        activeAi = new GoogleGenAI({
+          apiKey: cloudAiConfig.apiKey,
+          httpOptions: {
+            headers: {
+              'User-Agent': 'aistudio-build',
+            },
           },
-        },
-      });
-    } catch (e) {
-      console.warn('Custom Gemini key init fallback:', e);
+        });
+      } catch (e) {
+        console.warn('Custom Gemini key init fallback:', e);
+      }
     }
-  }
 
   if (activeAi && userApiKey) {
     try {
@@ -473,6 +490,7 @@ app.post('/api/generate-scorm', async (req, res) => {
       console.warn('Gemini API call failed or returned unexpected format, falling back to deterministic skill generator:', apiErr?.message);
     }
   }
+}
 
   // Fallback: Generate 100% compliant, rich, complete SCORM package using the embedded skill template
   const files = generateFallbackPackage(payload);

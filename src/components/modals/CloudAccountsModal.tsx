@@ -230,7 +230,7 @@ export const CloudAccountsModal: React.FC<CloudAccountsModalProps> = ({
                     onChange={(e) => {
                       const prov = e.target.value as any;
                       let defaultModel = form.customAi.model;
-                      if (prov === 'openrouter') defaultModel = 'google/gemini-2.0-flash-exp:free';
+                      if (prov === 'openrouter') defaultModel = 'meta-llama/llama-3.3-70b-instruct';
                       else if (prov === 'gemini') defaultModel = 'gemini-2.5-flash';
                       else if (prov === 'groq') defaultModel = 'llama-3.3-70b-versatile';
                       else if (prov === 'openai') defaultModel = 'gpt-4o';
@@ -271,34 +271,35 @@ export const CloudAccountsModal: React.FC<CloudAccountsModalProps> = ({
                       ...form,
                       customAi: { ...form.customAi, model: e.target.value }
                     })}
-                    placeholder={form.customAi.provider === 'openrouter' ? 'google/gemini-2.0-flash-exp:free' : 'gemini-2.5-flash'}
+                    placeholder={form.customAi.provider === 'openrouter' ? 'meta-llama/llama-3.3-70b-instruct' : 'gemini-2.5-flash'}
                     className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500 font-mono text-[11px]"
                   />
                 </div>
               </div>
 
-              {/* Quick Model Presets for OpenRouter */}
+              {/* Quick Model Presets for OpenRouter matching user's key */}
               {form.customAi.provider === 'openrouter' && (
                 <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2">
                   <div className="flex items-center justify-between text-[11px] text-slate-400">
-                    <span className="font-semibold text-slate-300">Quick Model Selection:</span>
+                    <span className="font-semibold text-slate-300">Models on your OpenRouter Account:</span>
                     <a
                       href="https://openrouter.ai/models"
                       target="_blank"
                       rel="noreferrer"
                       className="text-purple-400 hover:text-purple-300 flex items-center gap-1"
                     >
-                      Browse all 100+ models <ExternalLink className="w-3 h-3" />
+                      Browse all models <ExternalLink className="w-3 h-3" />
                     </a>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {[
-                      { label: 'Gemini 2.0 Flash (Free)', id: 'google/gemini-2.0-flash-exp:free', badge: 'FREE' },
-                      { label: 'Llama 3.3 70B', id: 'meta-llama/llama-3.3-70b-instruct', badge: 'PRO' },
-                      { label: 'Llama 3.1 8B (Free)', id: 'meta-llama/llama-3.1-8b-instruct:free', badge: 'FREE' },
-                      { label: 'DeepSeek R1 (Free)', id: 'deepseek/deepseek-r1:free', badge: 'FREE' },
-                      { label: 'Claude 3.5 Sonnet', id: 'anthropic/claude-3.5-sonnet', badge: 'PRO' },
-                      { label: 'GPT-4o', id: 'openai/gpt-4o', badge: 'PRO' },
+                      { label: 'Llama 3.3 70B', id: 'meta-llama/llama-3.3-70b-instruct', badge: 'RECOMMENDED' },
+                      { label: 'Nemotron 3.5 Lightning', id: 'nvidia/nemotron-3.5-lightning:free', badge: 'FREE' },
+                      { label: 'North Mini Code', id: 'cohere/north-mini-code:free', badge: 'FREE' },
+                      { label: 'Nemotron 3 Nano Omni', id: 'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free', badge: 'FREE' },
+                      { label: 'Nemotron 3 Ultra', id: 'nvidia/nemotron-3-ultra-550b-a55b:free', badge: 'FREE' },
+                      { label: 'LFM 2.5', id: 'liquid/lfm-2.5-2.6b:free', badge: 'FREE' },
+                      { label: 'Nemotron 3.5 Super VL', id: 'nvidia/nemotron-3.5-super-vl:free', badge: 'FREE' },
                     ].map((m) => (
                       <button
                         key={m.id}
